@@ -43,7 +43,11 @@ impl YangParser {
     }
 
     /// Parse YANG content from a string.
-    pub fn parse_string(&mut self, content: &str, filename: &str) -> Result<YangModule, ParseError> {
+    pub fn parse_string(
+        &mut self,
+        content: &str,
+        filename: &str,
+    ) -> Result<YangModule, ParseError> {
         let mut lexer = Lexer::new(content);
         let tokens = lexer.tokenize().map_err(|e| ParseError::SyntaxError {
             line: 1,
@@ -53,14 +57,15 @@ impl YangParser {
 
         let mut parser = ModuleParser::new(tokens, filename);
         let module = parser.parse_module()?;
-        
+
         // Try to resolve imports recursively (non-fatal if imports can't be found)
         // This allows parsing modules without having all dependencies available
         let _ = self.resolve_imports(&module);
-        
+
         // Store the parsed module
-        self.loaded_modules.insert(module.name.clone(), module.clone());
-        
+        self.loaded_modules
+            .insert(module.name.clone(), module.clone());
+
         Ok(module)
     }
 
@@ -74,14 +79,15 @@ impl YangParser {
 
             // Try to find and load the imported module
             let imported_module = self.find_and_load_module(&import.module)?;
-            
+
             // Recursively resolve imports of the imported module
             self.resolve_imports(&imported_module)?;
-            
+
             // Store the loaded module
-            self.loaded_modules.insert(import.module.clone(), imported_module);
+            self.loaded_modules
+                .insert(import.module.clone(), imported_module);
         }
-        
+
         Ok(())
     }
 
@@ -94,7 +100,7 @@ impl YangParser {
             if module_path.exists() {
                 let content = fs::read_to_string(&module_path)?;
                 let filename = module_path.to_string_lossy().to_string();
-                
+
                 let mut lexer = Lexer::new(&content);
                 let tokens = lexer.tokenize().map_err(|e| ParseError::SyntaxError {
                     line: 1,

@@ -2080,7 +2080,11 @@ mod tests {
         parser.add_search_path(temp_dir.path().to_path_buf());
 
         let result = parser.parse_string(main_content, "main.yang");
-        assert!(result.is_ok(), "Failed to parse module with imports: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with imports: {:?}",
+            result.err()
+        );
 
         let module = result.unwrap();
         assert_eq!(module.name, "main");
@@ -2110,7 +2114,10 @@ mod tests {
 
         // Parse should succeed but import resolution fails silently
         let result = parser.parse_string(main_content, "main.yang");
-        assert!(result.is_ok(), "Parsing should succeed even if imports can't be resolved");
+        assert!(
+            result.is_ok(),
+            "Parsing should succeed even if imports can't be resolved"
+        );
 
         // The missing module should not be in loaded modules
         assert!(parser.get_loaded_module("missing-module").is_none());
@@ -2161,7 +2168,11 @@ mod tests {
         parser.add_search_path(temp_dir.path().to_path_buf());
 
         let result = parser.parse_string(main_content, "main.yang");
-        assert!(result.is_ok(), "Failed to parse module with recursive imports: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with recursive imports: {:?}",
+            result.err()
+        );
 
         // Verify all modules in the chain were loaded
         assert!(parser.get_loaded_module("main").is_some());
@@ -2232,7 +2243,11 @@ mod tests {
         parser.add_search_path(temp_dir.path().to_path_buf());
 
         let result = parser.parse_string(main_content, "main.yang");
-        assert!(result.is_ok(), "Failed to parse module with shared imports: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with shared imports: {:?}",
+            result.err()
+        );
 
         // Verify all modules were loaded
         assert!(parser.get_loaded_module("main").is_some());
@@ -2293,7 +2308,11 @@ mod tests {
         parser.add_search_path(temp_dir2.path().to_path_buf());
 
         let result = parser.parse_string(main_content, "main.yang");
-        assert!(result.is_ok(), "Failed to parse module with multiple search paths: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with multiple search paths: {:?}",
+            result.err()
+        );
 
         // Verify both modules were found and loaded
         assert!(parser.get_loaded_module("modulea").is_some());
@@ -2335,7 +2354,11 @@ mod tests {
         parser.add_search_path(temp_dir.path().to_path_buf());
 
         let result = parser.parse_file(&main_path);
-        assert!(result.is_ok(), "Failed to parse file with imports: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to parse file with imports: {:?}",
+            result.err()
+        );
 
         // Verify both modules were loaded
         assert!(parser.get_loaded_module("main").is_some());
