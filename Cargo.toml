@@ -28,5 +28,8 @@ proc-macro2 = "1.0"
 # Property-based testing
 proptest = "1.4"
 
+# Testing utilities
+tempfile = "3.8"
+
 # Error handling
 thiserror = "1.0"
