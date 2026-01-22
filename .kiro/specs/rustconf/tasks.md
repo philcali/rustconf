@@ -13,7 +13,7 @@ This implementation plan breaks down the rustconf library into incremental codin
   - Configure rustfmt and clippy settings
   - _Requirements: 8.2, 8.4_
 
-- [ ] 2. Implement YANG lexer and basic parser infrastructure
+- [x] 2. Implement YANG lexer and basic parser infrastructure
   - [x] 2.1 Create YANG token types and lexer
     - Define token enum for YANG keywords, identifiers, strings, numbers, operators
     - Implement lexer using nom to tokenize YANG input
@@ -24,13 +24,13 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Property 1: Valid YANG Parsing Success (partial - lexing phase)**
     - **Validates: Requirements 1.1, 1.2**
   
-  - [ ] 2.3 Implement error types with location tracking
+  - [x] 2.3 Implement error types with location tracking
     - Create ParseError enum with syntax and semantic variants
     - Implement Display for user-friendly error messages
     - Track line and column numbers during parsing
     - _Requirements: 1.3, 7.1_
   
-  - [ ]* 2.4 Write unit tests for error reporting
+  - [x] 2.4 Write unit tests for error reporting
     - Test that syntax errors include location information
     - Test error message formatting
     - _Requirements: 1.3, 7.1_
