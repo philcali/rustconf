@@ -333,4 +333,4 @@ impl ModuleParser {
 
 #[cfg(test)]
 #[path = "mod.test.rs"]
-mod tests;
+mod mod_tests;
