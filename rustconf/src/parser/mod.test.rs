@@ -1805,8 +1805,7 @@ mod tests {
 
         // A choice should have at least one case (though parser may allow empty)
         // This test verifies the parser handles empty choices gracefully
-        if result.is_ok() {
-            let module = result.unwrap();
+        if let Ok(module) = result {
             if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
                 assert_eq!(choice.cases.len(), 0);
             }
