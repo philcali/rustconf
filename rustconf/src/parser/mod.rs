@@ -7,9 +7,11 @@ use std::path::{Path, PathBuf};
 
 pub mod ast;
 pub mod error;
+pub mod lexer;
 
 pub use ast::*;
 pub use error::ParseError;
+pub use lexer::{Lexer, Token};
 
 /// YANG parser with configurable search paths for module resolution.
 pub struct YangParser {

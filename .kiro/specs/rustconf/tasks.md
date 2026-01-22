@@ -14,13 +14,13 @@ This implementation plan breaks down the rustconf library into incremental codin
   - _Requirements: 8.2, 8.4_
 
 - [ ] 2. Implement YANG lexer and basic parser infrastructure
-  - [ ] 2.1 Create YANG token types and lexer
+  - [x] 2.1 Create YANG token types and lexer
     - Define token enum for YANG keywords, identifiers, strings, numbers, operators
     - Implement lexer using nom to tokenize YANG input
     - Handle comments and whitespace
     - _Requirements: 1.1, 1.2_
   
-  - [ ]* 2.2 Write property test for lexer
+  - [x] 2.2 Write property test for lexer
     - **Property 1: Valid YANG Parsing Success (partial - lexing phase)**
     - **Validates: Requirements 1.1, 1.2**
   
