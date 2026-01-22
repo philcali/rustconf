@@ -1,0 +1,32 @@
+[workspace]
+members = [
+    "rustconf",
+    "examples/interface-config",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["rustconf contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rustconf/rustconf"
+
+[workspace.dependencies]
+# Parsing
+nom = "7.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Code generation
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+proc-macro2 = "1.0"
+
+# Property-based testing
+proptest = "1.4"
+
+# Error handling
+thiserror = "1.0"

@@ -1,0 +1,12 @@
+# Clippy configuration for rustconf
+# Enforces code quality standards
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30
+
+# Documentation requirements
+missing-docs-in-crate-items = true
+
+# Avoid false positives for generated code patterns
+too-many-arguments-threshold = 8
+type-complexity-threshold = 500

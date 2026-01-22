@@ -1,0 +1,13 @@
+[package]
+name = "interface-config"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rustconf = { path = "../../rustconf" }
+serde.workspace = true
+serde_json.workspace = true
+
+[build-dependencies]
+rustconf = { path = "../../rustconf" }
