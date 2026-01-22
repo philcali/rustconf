@@ -35,15 +35,15 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Test error message formatting
     - _Requirements: 1.3, 7.1_
 
-- [ ] 3. Implement YANG AST data structures
-  - [ ] 3.1 Define core AST types
+- [x] 3. Implement YANG AST data structures
+  - [x] 3.1 Define core AST types
     - Create structs for YangModule, ModuleHeader, Import, TypeDef
     - Create enums for DataNode variants (Container, List, Leaf, etc.)
     - Create TypeSpec enum for YANG type system
     - Implement Debug and Clone for all AST types
     - _Requirements: 1.1, 1.2_
   
-  - [ ] 3.2 Implement constraint types
+  - [x] 3.2 Implement constraint types
     - Create RangeConstraint, LengthConstraint, PatternConstraint types
     - Add validation methods for constraint checking
     - _Requirements: 2.1, 2.5_

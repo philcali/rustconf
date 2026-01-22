@@ -29,7 +29,7 @@ pub enum Token {
     Contact,
     Description,
     Reference,
-    
+
     // Data definition keywords
     Container,
     List,
@@ -41,7 +41,7 @@ pub enum Token {
     Uses,
     Typedef,
     Type,
-    
+
     // Type keywords
     Int8,
     Int16,
@@ -63,7 +63,7 @@ pub enum Token {
     IdentityRef,
     Empty,
     InstanceIdentifier,
-    
+
     // Statement keywords
     Config,
     Mandatory,
@@ -83,14 +83,14 @@ pub enum Token {
     Presence,
     IfFeature,
     Feature,
-    
+
     // RPC and notification keywords
     Rpc,
     Input,
     Output,
     Notification,
     Action,
-    
+
     // Extension keywords
     Extension,
     Argument,
@@ -99,23 +99,23 @@ pub enum Token {
     Deviate,
     Identity,
     Base,
-    
+
     // Identifiers and literals
     Identifier(String),
     StringLiteral(String),
     Number(i64),
-    
+
     // Operators and delimiters
-    LeftBrace,      // {
-    RightBrace,     // }
-    Semicolon,      // ;
-    Plus,           // +
-    Colon,          // :
-    Slash,          // /
-    Dot,            // .
-    DoubleDot,      // ..
-    Pipe,           // |
-    
+    LeftBrace,  // {
+    RightBrace, // }
+    Semicolon,  // ;
+    Plus,       // +
+    Colon,      // :
+    Slash,      // /
+    Dot,        // .
+    DoubleDot,  // ..
+    Pipe,       // |
+
     // Special
     Eof,
 }
@@ -230,7 +230,10 @@ impl<'a> Lexer<'a> {
                 self.position = self.input.len() - rest.len();
                 Ok(tok)
             }
-            Err(e) => Err(format!("Lexer error at position {}: {:?}", self.position, e)),
+            Err(e) => Err(format!(
+                "Lexer error at position {}: {:?}",
+                self.position, e
+            )),
         }
     }
 
@@ -252,7 +255,7 @@ impl<'a> Lexer<'a> {
     fn skip_whitespace_and_comments(&mut self) -> Result<(), String> {
         loop {
             let remaining = &self.input[self.position..];
-            
+
             // Skip whitespace
             if let Ok((rest, _)) = multispace1::<_, nom::error::Error<_>>(remaining) {
                 self.position = self.input.len() - rest.len();
@@ -287,13 +290,7 @@ impl<'a> Lexer<'a> {
 
 /// Parse a single token.
 fn token(input: &str) -> IResult<&str, Token> {
-    alt((
-        keyword,
-        operator,
-        number,
-        string_literal,
-        identifier,
-    ))(input)
+    alt((keyword, operator, number, string_literal, identifier))(input)
 }
 
 /// Parse a keyword token with word boundary checking.
@@ -378,7 +375,12 @@ fn keyword(input: &str) -> IResult<&str, Token> {
         "bit" => Token::Bit,
         "key" => Token::Key,
         "rpc" => Token::Rpc,
-        _ => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+        _ => {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Tag,
+            )))
+        }
     };
 
     Ok((rest, token))
@@ -485,7 +487,7 @@ mod tests {
     use proptest::prelude::*;
 
     // Property-based test generators
-    
+
     /// Generate valid YANG keywords
     fn yang_keyword() -> impl Strategy<Value = &'static str> {
         prop_oneof![
@@ -510,18 +512,41 @@ mod tests {
 
     /// Generate valid YANG identifiers
     fn yang_identifier() -> impl Strategy<Value = String> {
-        "[a-zA-Z_][a-zA-Z0-9_-]{0,20}"
-            .prop_filter("Not a keyword", |s| {
-                !matches!(
-                    s.as_str(),
-                    "module" | "namespace" | "prefix" | "import" | "container" 
-                    | "list" | "leaf" | "leaf-list" | "type" | "string" 
-                    | "int32" | "uint32" | "boolean" | "config" | "mandatory"
-                    | "description" | "yang-version" | "organization" | "contact"
-                    | "reference" | "revision" | "typedef" | "grouping" | "uses"
-                    | "choice" | "case" | "rpc" | "input" | "output" | "notification"
-                )
-            })
+        "[a-zA-Z_][a-zA-Z0-9_-]{0,20}".prop_filter("Not a keyword", |s| {
+            !matches!(
+                s.as_str(),
+                "module"
+                    | "namespace"
+                    | "prefix"
+                    | "import"
+                    | "container"
+                    | "list"
+                    | "leaf"
+                    | "leaf-list"
+                    | "type"
+                    | "string"
+                    | "int32"
+                    | "uint32"
+                    | "boolean"
+                    | "config"
+                    | "mandatory"
+                    | "description"
+                    | "yang-version"
+                    | "organization"
+                    | "contact"
+                    | "reference"
+                    | "revision"
+                    | "typedef"
+                    | "grouping"
+                    | "uses"
+                    | "choice"
+                    | "case"
+                    | "rpc"
+                    | "input"
+                    | "output"
+                    | "notification"
+            )
+        })
     }
 
     /// Generate valid string literals
@@ -563,13 +588,14 @@ mod tests {
 
     /// Generate a simple valid YANG module structure
     fn simple_yang_module() -> impl Strategy<Value = String> {
-        (yang_identifier(), yang_identifier(), yang_string_literal())
-            .prop_map(|(name, prefix, namespace)| {
+        (yang_identifier(), yang_identifier(), yang_string_literal()).prop_map(
+            |(name, prefix, namespace)| {
                 format!(
                     "module {} {{ namespace {}; prefix {}; }}",
                     name, namespace, prefix
                 )
-            })
+            },
+        )
     }
 
     // Property-based tests
@@ -593,7 +619,7 @@ mod tests {
             let mut lexer = Lexer::new(&input);
             let result = lexer.tokenize();
             prop_assert!(result.is_ok(), "Lexer should successfully tokenize simple YANG module: {:?}", result.err());
-            
+
             let tokens = result.unwrap();
             // Should have at least: module, identifier, {, namespace, string, ;, prefix, identifier, ;, }, EOF
             prop_assert!(tokens.len() >= 11, "Simple module should produce at least 11 tokens, got {}", tokens.len());
@@ -652,7 +678,7 @@ mod tests {
                 .zip(spaces.iter().cycle())
                 .map(|(t, s)| format!("{}{}", t, s))
                 .collect::<String>();
-            
+
             let mut lexer = Lexer::new(&input);
             let result = lexer.tokenize();
             prop_assert!(result.is_ok(), "Lexer should handle whitespace correctly: {:?}", result.err());
@@ -758,12 +784,15 @@ mod tests {
         "#;
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize().unwrap();
-        
+
         assert_eq!(tokens[0], Token::Module);
         assert_eq!(tokens[1], Token::Identifier("example".to_string()));
         assert_eq!(tokens[2], Token::LeftBrace);
         assert_eq!(tokens[3], Token::Namespace);
-        assert_eq!(tokens[4], Token::StringLiteral("http://example.com".to_string()));
+        assert_eq!(
+            tokens[4],
+            Token::StringLiteral("http://example.com".to_string())
+        );
         assert_eq!(tokens[5], Token::Semicolon);
         assert_eq!(tokens[6], Token::Prefix);
         assert_eq!(tokens[7], Token::Identifier("ex".to_string()));

@@ -75,8 +75,13 @@ mod tests {
             column: 50,
             message: "missing semicolon".to_string(),
         };
-        
-        if let ParseError::SyntaxError { line, column, message } = error {
+
+        if let ParseError::SyntaxError {
+            line,
+            column,
+            message,
+        } = error
+        {
             assert_eq!(line, 100);
             assert_eq!(column, 50);
             assert_eq!(message, "missing semicolon");
@@ -96,7 +101,7 @@ mod tests {
         };
         let display = format!("{}", error);
         assert_eq!(display, "Syntax error at 1:1: expected 'module' keyword");
-        
+
         // Verify location information is preserved
         if let ParseError::SyntaxError { line, column, .. } = error {
             assert_eq!(line, 1);
@@ -140,10 +145,10 @@ mod tests {
             column: 15,
             message: "unexpected token".to_string(),
         };
-        
+
         let display1 = format!("{}", error1);
         let display2 = format!("{}", error2);
-        
+
         assert!(display1.contains("10:5"));
         assert!(display2.contains("20:15"));
         assert_ne!(display1, display2);
@@ -152,7 +157,8 @@ mod tests {
     #[test]
     fn test_semantic_error_with_context() {
         let error = ParseError::SemanticError {
-            message: "circular dependency detected: module 'a' imports 'b' which imports 'a'".to_string(),
+            message: "circular dependency detected: module 'a' imports 'b' which imports 'a'"
+                .to_string(),
         };
         let display = format!("{}", error);
         assert!(display.starts_with("Semantic error:"));
