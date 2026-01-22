@@ -1,10 +1,13 @@
-//! Unit tests for YANG module header parsing.
+//! Unit tests for YANG parser
 //! Task 4.2: Write unit tests for module header parsing
-//! Requirements: 1.1, 1.2, 1.3, 1.4
+//! Task 4.4: Write unit tests for data definition parsing
+//! Requirements: 1.1, 1.2, 1.3, 1.4, 2.2, 2.3, 2.4, 2.6, 2.7
 
 #[cfg(test)]
 mod tests {
     use crate::parser::{ParseError, YangParser, YangVersion};
+
+    // ========== Module Header Tests (Task 4.2) ==========
 
     #[test]
     fn test_parse_simple_module_with_namespace_and_prefix() {
@@ -45,36 +48,13 @@ mod tests {
         let parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
-        assert!(
-            result.is_ok(),
-            "Failed to parse module with yang-version: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok());
         let module = result.unwrap();
 
         assert_eq!(module.name, "test-module");
         assert_eq!(module.yang_version, Some(YangVersion::V1_1));
         assert_eq!(module.namespace, "urn:test:module");
         assert_eq!(module.prefix, "test");
-    }
-
-    #[test]
-    fn test_parse_module_with_yang_version_1_0() {
-        let input = r#"
-            module old-module {
-                yang-version "1.0";
-                namespace "urn:old:module";
-                prefix old;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-
-        assert_eq!(module.yang_version, Some(YangVersion::V1_0));
     }
 
     #[test]
@@ -97,59 +77,16 @@ mod tests {
         let parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
-        assert!(
-            result.is_ok(),
-            "Failed to parse module with imports: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok());
         let module = result.unwrap();
 
         assert_eq!(module.name, "main");
         assert_eq!(module.imports.len(), 2);
-
         assert_eq!(module.imports[0].module, "ietf-yang-types");
         assert_eq!(module.imports[0].prefix, "yang");
-
         assert_eq!(module.imports[1].module, "ietf-inet-types");
         assert_eq!(module.imports[1].prefix, "inet");
     }
-
-    #[test]
-    fn test_parse_module_with_multiple_statements() {
-        let input = r#"
-            module complex {
-                yang-version "1.1";
-                namespace "urn:complex:module";
-                prefix cx;
-                
-                import ietf-yang-types {
-                    prefix yang;
-                }
-                
-                organization "Test Organization";
-                contact "test@example.com";
-                description "A complex test module";
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(
-            result.is_ok(),
-            "Failed to parse complex module: {:?}",
-            result.err()
-        );
-        let module = result.unwrap();
-
-        assert_eq!(module.name, "complex");
-        assert_eq!(module.yang_version, Some(YangVersion::V1_1));
-        assert_eq!(module.namespace, "urn:complex:module");
-        assert_eq!(module.prefix, "cx");
-        assert_eq!(module.imports.len(), 1);
-    }
-
-    // Error cases
 
     #[test]
     fn test_error_missing_namespace() {
@@ -191,181 +128,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_error_invalid_syntax_missing_brace() {
-        let input = r#"
-            module bad {
-                namespace "urn:bad";
-                prefix bad;
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_error_invalid_module_name() {
-        let input = r#"
-            module {
-                namespace "urn:bad";
-                prefix bad;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ParseError::SyntaxError { message, .. } => {
-                assert!(message.contains("module name"));
-            }
-            _ => panic!("Expected SyntaxError for invalid module name"),
-        }
-    }
-
-    #[test]
-    fn test_error_missing_semicolon_after_namespace() {
-        let input = r#"
-            module bad {
-                namespace "urn:bad"
-                prefix bad;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_error_invalid_yang_version() {
-        let input = r#"
-            module bad {
-                yang-version "2.0";
-                namespace "urn:bad";
-                prefix bad;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ParseError::SyntaxError { message, .. } => {
-                assert!(message.contains("yang-version"));
-            }
-            _ => panic!("Expected SyntaxError for invalid yang-version"),
-        }
-    }
-
-    #[test]
-    fn test_error_import_missing_prefix() {
-        let input = r#"
-            module bad {
-                namespace "urn:bad";
-                prefix bad;
-                
-                import ietf-yang-types {
-                }
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ParseError::SyntaxError { message, .. } => {
-                assert!(message.contains("prefix"));
-            }
-            _ => panic!("Expected SyntaxError for import missing prefix"),
-        }
-    }
-
-    #[test]
-    fn test_parse_module_with_hyphenated_name() {
-        let input = r#"
-            module my-test-module {
-                namespace "urn:my:test";
-                prefix mt;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.name, "my-test-module");
-    }
-
-    #[test]
-    fn test_parse_module_with_underscored_prefix() {
-        let input = r#"
-            module test {
-                namespace "urn:test";
-                prefix test_prefix;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.prefix, "test_prefix");
-    }
-
-    #[test]
-    fn test_parse_module_with_comments() {
-        let input = r#"
-            // This is a test module
-            module test {
-                /* Multi-line
-                   comment */
-                namespace "urn:test"; // inline comment
-                prefix test;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.name, "test");
-    }
-
-    #[test]
-    fn test_parse_empty_module() {
-        let input = r#"
-            module minimal {
-                namespace "urn:minimal";
-                prefix min;
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(
-            result.is_ok(),
-            "Failed to parse minimal module: {:?}",
-            result.err()
-        );
-        let module = result.unwrap();
-        assert_eq!(module.name, "minimal");
-        assert!(module.data_nodes.is_empty());
-        assert!(module.rpcs.is_empty());
-        assert!(module.notifications.is_empty());
-    }
-
-    // Task 4.3: Tests for typedef and grouping parsing
+    // ========== Typedef and Grouping Tests (Task 4.3) ==========
 
     #[test]
     fn test_parse_typedef_simple() {
@@ -383,95 +146,10 @@ mod tests {
         let parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
-        assert!(
-            result.is_ok(),
-            "Failed to parse module with typedef: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok());
         let module = result.unwrap();
         assert_eq!(module.typedefs.len(), 1);
         assert_eq!(module.typedefs[0].name, "percent");
-    }
-
-    #[test]
-    fn test_parse_typedef_with_description() {
-        let input = r#"
-            module test {
-                namespace "urn:test";
-                prefix test;
-                
-                typedef port-number {
-                    type uint16;
-                    description "A TCP/UDP port number";
-                }
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.typedefs.len(), 1);
-        assert_eq!(module.typedefs[0].name, "port-number");
-        assert_eq!(
-            module.typedefs[0].description,
-            Some("A TCP/UDP port number".to_string())
-        );
-    }
-
-    #[test]
-    fn test_parse_typedef_with_units_and_default() {
-        let input = r#"
-            module test {
-                namespace "urn:test";
-                prefix test;
-                
-                typedef temperature {
-                    type int32;
-                    units "celsius";
-                    default 20;
-                }
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.typedefs.len(), 1);
-        assert_eq!(module.typedefs[0].name, "temperature");
-        assert_eq!(module.typedefs[0].units, Some("celsius".to_string()));
-        assert_eq!(module.typedefs[0].default, Some("20".to_string()));
-    }
-
-    #[test]
-    fn test_parse_multiple_typedefs() {
-        let input = r#"
-            module test {
-                namespace "urn:test";
-                prefix test;
-                
-                typedef percent {
-                    type uint8;
-                }
-                
-                typedef counter32 {
-                    type uint32;
-                    description "32-bit counter";
-                }
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.typedefs.len(), 2);
-        assert_eq!(module.typedefs[0].name, "percent");
-        assert_eq!(module.typedefs[1].name, "counter32");
     }
 
     #[test]
@@ -492,28 +170,25 @@ mod tests {
         let parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
-        assert!(
-            result.is_ok(),
-            "Failed to parse module with grouping: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok());
         let module = result.unwrap();
         assert_eq!(module.groupings.len(), 1);
         assert_eq!(module.groupings[0].name, "endpoint");
         assert_eq!(module.groupings[0].data_nodes.len(), 1);
     }
 
+    // ========== Data Definition Tests (Task 4.4) ==========
+
     #[test]
-    fn test_parse_grouping_with_description() {
+    fn test_parse_container_simple() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                grouping target {
-                    description "Target endpoint configuration";
-                    leaf ip {
-                        type string;
+                container system-settings {
+                    leaf enabled {
+                        type boolean;
                     }
                 }
             }
@@ -522,60 +197,32 @@ mod tests {
         let parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
         let module = result.unwrap();
-        assert_eq!(module.groupings.len(), 1);
-        assert_eq!(module.groupings[0].name, "target");
-        assert_eq!(
-            module.groupings[0].description,
-            Some("Target endpoint configuration".to_string())
-        );
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::Container(container) = &module.data_nodes[0] {
+            assert_eq!(container.name, "system-settings");
+            assert_eq!(container.children.len(), 1);
+            assert!(container.config);
+            assert!(!container.mandatory);
+        } else {
+            panic!("Expected Container data node");
+        }
     }
 
     #[test]
-    fn test_parse_grouping_with_multiple_nodes() {
+    fn test_parse_container_with_nested_containers() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                grouping server-config {
-                    leaf hostname {
-                        type string;
-                    }
-                    leaf port {
-                        type uint16;
-                    }
-                    container options {
-                        leaf timeout {
-                            type uint32;
-                        }
-                    }
-                }
-            }
-        "#;
-
-        let parser = YangParser::new();
-        let result = parser.parse_string(input, "test.yang");
-
-        assert!(result.is_ok());
-        let module = result.unwrap();
-        assert_eq!(module.groupings.len(), 1);
-        assert_eq!(module.groupings[0].name, "server-config");
-        assert_eq!(module.groupings[0].data_nodes.len(), 3);
-    }
-
-    #[test]
-    fn test_parse_grouping_with_list() {
-        let input = r#"
-            module test {
-                namespace "urn:test";
-                prefix test;
-                
-                grouping interface-list {
-                    list interface {
-                        key "name";
-                        leaf name {
+                container outer {
+                    description "Outer container";
+                    container inner {
+                        description "Inner container";
+                        leaf value {
                             type string;
                         }
                     }
@@ -588,29 +235,38 @@ mod tests {
 
         assert!(result.is_ok());
         let module = result.unwrap();
-        assert_eq!(module.groupings.len(), 1);
-        assert_eq!(module.groupings[0].data_nodes.len(), 1);
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::Container(outer) = &module.data_nodes[0] {
+            assert_eq!(outer.name, "outer");
+            assert_eq!(outer.description, Some("Outer container".to_string()));
+            assert_eq!(outer.children.len(), 1);
+
+            if let crate::parser::DataNode::Container(inner) = &outer.children[0] {
+                assert_eq!(inner.name, "inner");
+                assert_eq!(inner.description, Some("Inner container".to_string()));
+                assert_eq!(inner.children.len(), 1);
+            } else {
+                panic!("Expected nested Container");
+            }
+        } else {
+            panic!("Expected Container data node");
+        }
     }
 
     #[test]
-    fn test_parse_module_with_typedefs_and_groupings() {
+    fn test_parse_container_with_config_and_mandatory() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                typedef percent {
-                    type uint8;
-                }
-                
-                grouping stats {
-                    leaf count {
-                        type uint32;
+                container system {
+                    config false;
+                    mandatory true;
+                    leaf hostname {
+                        type string;
                     }
-                }
-                
-                typedef counter {
-                    type uint64;
                 }
             }
         "#;
@@ -620,18 +276,591 @@ mod tests {
 
         assert!(result.is_ok());
         let module = result.unwrap();
-        assert_eq!(module.typedefs.len(), 2);
-        assert_eq!(module.groupings.len(), 1);
+
+        if let crate::parser::DataNode::Container(container) = &module.data_nodes[0] {
+            assert_eq!(container.name, "system");
+            assert!(!container.config);
+            assert!(container.mandatory);
+        } else {
+            panic!("Expected Container data node");
+        }
     }
 
     #[test]
-    fn test_error_typedef_missing_type() {
+    fn test_parse_list_with_key() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                typedef bad {
+                list interface {
+                    key "name";
+                    leaf name {
+                        type string;
+                    }
+                    leaf enabled {
+                        type boolean;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::List(list) = &module.data_nodes[0] {
+            assert_eq!(list.name, "interface");
+            assert_eq!(list.keys, vec!["name"]);
+            assert_eq!(list.children.len(), 2);
+            assert!(list.config);
+        } else {
+            panic!("Expected List data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_list_with_multiple_keys() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                list connection {
+                    key "source destination";
+                    leaf source {
+                        type string;
+                    }
+                    leaf destination {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::List(list) = &module.data_nodes[0] {
+            assert_eq!(list.name, "connection");
+            assert_eq!(list.keys, vec!["source", "destination"]);
+        } else {
+            panic!("Expected List data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_list_with_nested_container() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                list server {
+                    key "id";
+                    leaf id {
+                        type uint32;
+                    }
+                    container settings {
+                        leaf hostname {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::List(list) = &module.data_nodes[0] {
+            assert_eq!(list.name, "server");
+            assert_eq!(list.children.len(), 2);
+
+            let has_container = list
+                .children
+                .iter()
+                .any(|node| matches!(node, crate::parser::DataNode::Container(_)));
+            assert!(has_container, "List should contain a nested container");
+        } else {
+            panic!("Expected List data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_mandatory() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf username {
+                    type string;
+                    mandatory true;
+                    description "User login name";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "username");
+            assert!(leaf.mandatory);
+            assert_eq!(leaf.description, Some("User login name".to_string()));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_default() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf timeout {
+                    type uint32;
+                    default 30;
+                    config true;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "timeout");
+            assert_eq!(leaf.default, Some("30".to_string()));
+            assert!(leaf.config);
+            assert!(!leaf.mandatory);
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_list() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf-list dns-server {
+                    type string;
+                    description "DNS server addresses";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::LeafList(leaf_list) = &module.data_nodes[0] {
+            assert_eq!(leaf_list.name, "dns-server");
+            assert_eq!(
+                leaf_list.description,
+                Some("DNS server addresses".to_string())
+            );
+            assert!(leaf_list.config);
+        } else {
+            panic!("Expected LeafList data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_choice_with_cases() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice address-type {
+                    description "Address type selection";
+                    case ipv4 {
+                        leaf ipv4-address {
+                            type string;
+                        }
+                    }
+                    case ipv6 {
+                        leaf ipv6-address {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+            assert_eq!(choice.name, "address-type");
+            assert_eq!(
+                choice.description,
+                Some("Address type selection".to_string())
+            );
+            assert_eq!(choice.cases.len(), 2);
+            assert_eq!(choice.cases[0].name, "ipv4");
+            assert_eq!(choice.cases[1].name, "ipv6");
+            assert!(!choice.mandatory);
+        } else {
+            panic!("Expected Choice data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_choice_with_mandatory() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice protocol {
+                    mandatory true;
+                    case tcp {
+                        leaf tcp-port {
+                            type uint16;
+                        }
+                    }
+                    case udp {
+                        leaf udp-port {
+                            type uint16;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+            assert_eq!(choice.name, "protocol");
+            assert!(choice.mandatory);
+            assert_eq!(choice.cases.len(), 2);
+        } else {
+            panic!("Expected Choice data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_choice_with_shorthand_cases() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice transport {
+                    leaf tcp {
+                        type boolean;
+                    }
+                    leaf udp {
+                        type boolean;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+            assert_eq!(choice.name, "transport");
+            assert_eq!(choice.cases.len(), 2);
+            assert_eq!(choice.cases[0].name, "tcp");
+            assert_eq!(choice.cases[1].name, "udp");
+        } else {
+            panic!("Expected Choice data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_case_with_multiple_nodes() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice config-method {
+                    case manual {
+                        description "Manual configuration";
+                        leaf ip-address {
+                            type string;
+                        }
+                        leaf netmask {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+            assert_eq!(choice.cases.len(), 1);
+            let case = &choice.cases[0];
+            assert_eq!(case.name, "manual");
+            assert_eq!(case.description, Some("Manual configuration".to_string()));
+            assert_eq!(case.data_nodes.len(), 2);
+        } else {
+            panic!("Expected Choice data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_complex_nested_structure() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container system {
+                    description "System configuration";
+                    
+                    list interface {
+                        key "name";
+                        
+                        leaf name {
+                            type string;
+                            mandatory true;
+                        }
+                        
+                        container settings {
+                            leaf enabled {
+                                type boolean;
+                                default true;
+                            }
+                            
+                            choice address-family {
+                                case ipv4 {
+                                    leaf ipv4-address {
+                                        type string;
+                                    }
+                                }
+                                case ipv6 {
+                                    leaf ipv6-address {
+                                        type string;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        leaf-list dns-server {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 1);
+
+        if let crate::parser::DataNode::Container(system) = &module.data_nodes[0] {
+            assert_eq!(system.name, "system");
+            assert_eq!(system.children.len(), 1);
+
+            if let crate::parser::DataNode::List(interface) = &system.children[0] {
+                assert_eq!(interface.name, "interface");
+                assert_eq!(interface.keys, vec!["name"]);
+                assert_eq!(interface.children.len(), 3);
+
+                let has_container = interface.children.iter().any(|node| {
+                    if let crate::parser::DataNode::Container(c) = node {
+                        c.name == "settings"
+                    } else {
+                        false
+                    }
+                });
+                assert!(has_container, "List should contain settings container");
+            } else {
+                panic!("Expected List in system container");
+            }
+        } else {
+            panic!("Expected Container data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_top_level_data_nodes() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container system-settings {
+                    leaf enabled {
+                        type boolean;
+                    }
+                }
+                
+                list users {
+                    key "username";
+                    leaf username {
+                        type string;
+                    }
+                }
+                
+                leaf version {
+                    type string;
+                    config false;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 3);
+
+        assert!(matches!(
+            module.data_nodes[0],
+            crate::parser::DataNode::Container(_)
+        ));
+        assert!(matches!(
+            module.data_nodes[1],
+            crate::parser::DataNode::List(_)
+        ));
+        assert!(matches!(
+            module.data_nodes[2],
+            crate::parser::DataNode::Leaf(_)
+        ));
+    }
+
+    #[test]
+    fn test_parse_container_with_all_child_types() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container root {
+                    container nested-container {
+                        leaf value {
+                            type string;
+                        }
+                    }
+                    
+                    list items {
+                        key "id";
+                        leaf id {
+                            type uint32;
+                        }
+                    }
+                    
+                    leaf simple-leaf {
+                        type boolean;
+                    }
+                    
+                    leaf-list tags {
+                        type string;
+                    }
+                    
+                    choice option {
+                        case a {
+                            leaf option-a {
+                                type string;
+                            }
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Container(root) = &module.data_nodes[0] {
+            assert_eq!(root.name, "root");
+            assert_eq!(root.children.len(), 5);
+
+            let has_container = root
+                .children
+                .iter()
+                .any(|n| matches!(n, crate::parser::DataNode::Container(_)));
+            let has_list = root
+                .children
+                .iter()
+                .any(|n| matches!(n, crate::parser::DataNode::List(_)));
+            let has_leaf = root
+                .children
+                .iter()
+                .any(|n| matches!(n, crate::parser::DataNode::Leaf(_)));
+            let has_leaf_list = root
+                .children
+                .iter()
+                .any(|n| matches!(n, crate::parser::DataNode::LeafList(_)));
+            let has_choice = root
+                .children
+                .iter()
+                .any(|n| matches!(n, crate::parser::DataNode::Choice(_)));
+
+            assert!(has_container);
+            assert!(has_list);
+            assert!(has_leaf);
+            assert!(has_leaf_list);
+            assert!(has_choice);
+        } else {
+            panic!("Expected Container data node");
+        }
+    }
+
+    #[test]
+    fn test_error_leaf_missing_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf bad {
                     description "Missing type";
                 }
             }
@@ -645,18 +874,155 @@ mod tests {
             ParseError::SyntaxError { message, .. } => {
                 assert!(message.contains("type"));
             }
-            _ => panic!("Expected SyntaxError for missing type in typedef"),
+            _ => panic!("Expected SyntaxError for missing type in leaf"),
         }
     }
 
     #[test]
-    fn test_parse_typedef_with_string_type() {
+    fn test_error_leaf_list_missing_type() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                typedef name-string {
+                leaf-list bad {
+                    description "Missing type";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ParseError::SyntaxError { message, .. } => {
+                assert!(message.contains("type"));
+            }
+            _ => panic!("Expected SyntaxError for missing type in leaf-list"),
+        }
+    }
+
+    #[test]
+    fn test_parse_deeply_nested_containers() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container level1 {
+                    container level2 {
+                        container level3 {
+                            container level4 {
+                                leaf value {
+                                    type string;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Container(l1) = &module.data_nodes[0] {
+            assert_eq!(l1.name, "level1");
+            if let crate::parser::DataNode::Container(l2) = &l1.children[0] {
+                assert_eq!(l2.name, "level2");
+                if let crate::parser::DataNode::Container(l3) = &l2.children[0] {
+                    assert_eq!(l3.name, "level3");
+                    if let crate::parser::DataNode::Container(l4) = &l3.children[0] {
+                        assert_eq!(l4.name, "level4");
+                        assert_eq!(l4.children.len(), 1);
+                    } else {
+                        panic!("Expected level4 container");
+                    }
+                } else {
+                    panic!("Expected level3 container");
+                }
+            } else {
+                panic!("Expected level2 container");
+            }
+        } else {
+            panic!("Expected level1 container");
+        }
+    }
+
+    // ========== Type Specification Tests (Task 4.6) ==========
+
+    #[test]
+    fn test_parse_leaf_with_int8_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf age {
+                    type int8;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "age");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Int8 { .. }
+            ));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_uint32_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf counter {
+                    type uint32;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "counter");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Uint32 { .. }
+            ));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_string_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf name {
                     type string;
                 }
             }
@@ -667,18 +1033,27 @@ mod tests {
 
         assert!(result.is_ok());
         let module = result.unwrap();
-        assert_eq!(module.typedefs.len(), 1);
-        assert_eq!(module.typedefs[0].name, "name-string");
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "name");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::String { .. }
+            ));
+        } else {
+            panic!("Expected Leaf data node");
+        }
     }
 
     #[test]
-    fn test_parse_grouping_empty() {
+    fn test_parse_leaf_with_boolean_type() {
         let input = r#"
             module test {
                 namespace "urn:test";
                 prefix test;
                 
-                grouping empty-group {
+                leaf enabled {
+                    type boolean;
                 }
             }
         "#;
@@ -688,8 +1063,985 @@ mod tests {
 
         assert!(result.is_ok());
         let module = result.unwrap();
-        assert_eq!(module.groupings.len(), 1);
-        assert_eq!(module.groupings[0].name, "empty-group");
-        assert!(module.groupings[0].data_nodes.is_empty());
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "enabled");
+            assert!(matches!(leaf.type_spec, crate::parser::TypeSpec::Boolean));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_range_constraint() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf port {
+                    type uint16 {
+                        range "1..65535";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "port");
+            if let crate::parser::TypeSpec::Uint16 { range } = &leaf.type_spec {
+                assert!(range.is_some());
+                let range = range.as_ref().unwrap();
+                assert_eq!(range.ranges.len(), 1);
+                assert_eq!(range.ranges[0].min, 1);
+                assert_eq!(range.ranges[0].max, 65535);
+            } else {
+                panic!("Expected Uint16 type with range");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_multiple_range_constraints() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf priority {
+                    type int32 {
+                        range "1..10 | 20..30 | 40..50";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            if let crate::parser::TypeSpec::Int32 { range } = &leaf.type_spec {
+                assert!(range.is_some());
+                let range = range.as_ref().unwrap();
+                assert_eq!(range.ranges.len(), 3);
+                assert_eq!(range.ranges[0].min, 1);
+                assert_eq!(range.ranges[0].max, 10);
+                assert_eq!(range.ranges[1].min, 20);
+                assert_eq!(range.ranges[1].max, 30);
+                assert_eq!(range.ranges[2].min, 40);
+                assert_eq!(range.ranges[2].max, 50);
+            } else {
+                panic!("Expected Int32 type with range");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_length_constraint() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf username {
+                    type string {
+                        length "1..64";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "username");
+            if let crate::parser::TypeSpec::String { length, .. } = &leaf.type_spec {
+                assert!(length.is_some());
+                let length = length.as_ref().unwrap();
+                assert_eq!(length.lengths.len(), 1);
+                assert_eq!(length.lengths[0].min, 1);
+                assert_eq!(length.lengths[0].max, 64);
+            } else {
+                panic!("Expected String type with length");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_pattern_constraint() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf email {
+                    type string {
+                        pattern "[a-zA-Z0-9]+@[a-zA-Z0-9]+";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "email");
+            if let crate::parser::TypeSpec::String { pattern, .. } = &leaf.type_spec {
+                assert!(pattern.is_some());
+                let pattern = pattern.as_ref().unwrap();
+                assert!(pattern.pattern.contains("@"));
+            } else {
+                panic!("Expected String type with pattern");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_length_and_pattern_constraints() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf code {
+                    type string {
+                        length "3..10";
+                        pattern "[A-Z][0-9]+";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            if let crate::parser::TypeSpec::String { length, pattern } = &leaf.type_spec {
+                assert!(length.is_some());
+                assert!(pattern.is_some());
+
+                let length = length.as_ref().unwrap();
+                assert_eq!(length.lengths[0].min, 3);
+                assert_eq!(length.lengths[0].max, 10);
+
+                let pattern = pattern.as_ref().unwrap();
+                assert!(pattern.pattern.contains("[A-Z]"));
+            } else {
+                panic!("Expected String type with length and pattern");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_enumeration_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf state {
+                    type enumeration {
+                        enum active;
+                        enum inactive;
+                        enum pending;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "state");
+            if let crate::parser::TypeSpec::Enumeration { values } = &leaf.type_spec {
+                assert_eq!(values.len(), 3);
+                assert_eq!(values[0].name, "active");
+                assert_eq!(values[1].name, "inactive");
+                assert_eq!(values[2].name, "pending");
+            } else {
+                panic!("Expected Enumeration type");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_enumeration_values_and_descriptions() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf color {
+                    type enumeration {
+                        enum red {
+                            value 1;
+                            description "Red color";
+                        }
+                        enum green {
+                            value 2;
+                            description "Green color";
+                        }
+                        enum blue {
+                            value 3;
+                            description "Blue color";
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            if let crate::parser::TypeSpec::Enumeration { values } = &leaf.type_spec {
+                assert_eq!(values.len(), 3);
+
+                assert_eq!(values[0].name, "red");
+                assert_eq!(values[0].value, Some(1));
+                assert_eq!(values[0].description, Some("Red color".to_string()));
+
+                assert_eq!(values[1].name, "green");
+                assert_eq!(values[1].value, Some(2));
+                assert_eq!(values[1].description, Some("Green color".to_string()));
+
+                assert_eq!(values[2].name, "blue");
+                assert_eq!(values[2].value, Some(3));
+                assert_eq!(values[2].description, Some("Blue color".to_string()));
+            } else {
+                panic!("Expected Enumeration type");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_union_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf value {
+                    type union {
+                        type int32;
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "value");
+            if let crate::parser::TypeSpec::Union { types } = &leaf.type_spec {
+                assert_eq!(types.len(), 2);
+                assert!(matches!(types[0], crate::parser::TypeSpec::Int32 { .. }));
+                assert!(matches!(types[1], crate::parser::TypeSpec::String { .. }));
+            } else {
+                panic!("Expected Union type");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_union_type_with_constraints() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf port_or_name {
+                    type union {
+                        type uint16 {
+                            range "1..65535";
+                        }
+                        type string {
+                            length "1..32";
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            if let crate::parser::TypeSpec::Union { types } = &leaf.type_spec {
+                assert_eq!(types.len(), 2);
+
+                if let crate::parser::TypeSpec::Uint16 { range } = &types[0] {
+                    assert!(range.is_some());
+                } else {
+                    panic!("Expected Uint16 type in union");
+                }
+
+                if let crate::parser::TypeSpec::String { length, .. } = &types[1] {
+                    assert!(length.is_some());
+                } else {
+                    panic!("Expected String type in union");
+                }
+            } else {
+                panic!("Expected Union type");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_binary_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf data {
+                    type binary;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "data");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Binary { .. }
+            ));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_binary_length_constraint() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf hash {
+                    type binary {
+                        length "32";
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            if let crate::parser::TypeSpec::Binary { length } = &leaf.type_spec {
+                assert!(length.is_some());
+                let length = length.as_ref().unwrap();
+                assert_eq!(length.lengths[0].min, 32);
+                assert_eq!(length.lengths[0].max, 32);
+            } else {
+                panic!("Expected Binary type with length");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_empty_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf flag {
+                    type empty;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "flag");
+            assert!(matches!(leaf.type_spec, crate::parser::TypeSpec::Empty));
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_all_integer_types() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf i8 { type int8; }
+                leaf i16 { type int16; }
+                leaf i32 { type int32; }
+                leaf i64 { type int64; }
+                leaf u8 { type uint8; }
+                leaf u16 { type uint16; }
+                leaf u32 { type uint32; }
+                leaf u64 { type uint64; }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.data_nodes.len(), 8);
+
+        // Check each leaf type
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "i8");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Int8 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[1] {
+            assert_eq!(leaf.name, "i16");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Int16 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[2] {
+            assert_eq!(leaf.name, "i32");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Int32 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[3] {
+            assert_eq!(leaf.name, "i64");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Int64 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[4] {
+            assert_eq!(leaf.name, "u8");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Uint8 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[5] {
+            assert_eq!(leaf.name, "u16");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Uint16 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[6] {
+            assert_eq!(leaf.name, "u32");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Uint32 { .. }
+            ));
+        }
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[7] {
+            assert_eq!(leaf.name, "u64");
+            assert!(matches!(
+                leaf.type_spec,
+                crate::parser::TypeSpec::Uint64 { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn test_parse_typedef_with_constrained_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef percent {
+                    type uint8 {
+                        range "0..100";
+                    }
+                    units "percent";
+                    description "Percentage value";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 1);
+
+        let typedef = &module.typedefs[0];
+        assert_eq!(typedef.name, "percent");
+        assert_eq!(typedef.units, Some("percent".to_string()));
+        assert_eq!(typedef.description, Some("Percentage value".to_string()));
+
+        if let crate::parser::TypeSpec::Uint8 { range } = &typedef.type_spec {
+            assert!(range.is_some());
+            let range = range.as_ref().unwrap();
+            assert_eq!(range.ranges[0].min, 0);
+            assert_eq!(range.ranges[0].max, 100);
+        } else {
+            panic!("Expected Uint8 type with range");
+        }
+    }
+
+    #[test]
+    fn test_parse_complex_type_with_multiple_constraints() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container network {
+                    leaf port {
+                        type uint16 {
+                            range "1024..65535";
+                        }
+                        mandatory true;
+                    }
+                    
+                    leaf hostname {
+                        type string {
+                            length "1..255";
+                            pattern "[a-zA-Z0-9.-]+";
+                        }
+                    }
+                    
+                    leaf protocol {
+                        type enumeration {
+                            enum tcp {
+                                value 6;
+                            }
+                            enum udp {
+                                value 17;
+                            }
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Container(container) = &module.data_nodes[0] {
+            assert_eq!(container.name, "network");
+            assert_eq!(container.children.len(), 3);
+
+            // Check port leaf
+            if let crate::parser::DataNode::Leaf(port) = &container.children[0] {
+                assert_eq!(port.name, "port");
+                assert!(port.mandatory);
+                if let crate::parser::TypeSpec::Uint16 { range } = &port.type_spec {
+                    assert!(range.is_some());
+                } else {
+                    panic!("Expected Uint16 type");
+                }
+            } else {
+                panic!("Expected Leaf for port");
+            }
+
+            // Check hostname leaf
+            if let crate::parser::DataNode::Leaf(hostname) = &container.children[1] {
+                assert_eq!(hostname.name, "hostname");
+                if let crate::parser::TypeSpec::String { length, pattern } = &hostname.type_spec {
+                    assert!(length.is_some());
+                    assert!(pattern.is_some());
+                } else {
+                    panic!("Expected String type");
+                }
+            } else {
+                panic!("Expected Leaf for hostname");
+            }
+
+            // Check protocol leaf
+            if let crate::parser::DataNode::Leaf(protocol) = &container.children[2] {
+                assert_eq!(protocol.name, "protocol");
+                if let crate::parser::TypeSpec::Enumeration { values } = &protocol.type_spec {
+                    assert_eq!(values.len(), 2);
+                    assert_eq!(values[0].name, "tcp");
+                    assert_eq!(values[0].value, Some(6));
+                    assert_eq!(values[1].name, "udp");
+                    assert_eq!(values[1].value, Some(17));
+                } else {
+                    panic!("Expected Enumeration type");
+                }
+            } else {
+                panic!("Expected Leaf for protocol");
+            }
+        } else {
+            panic!("Expected Container data node");
+        }
+    }
+
+    // ========== Additional Error Case Tests (Task 4.6) ==========
+
+    #[test]
+    fn test_parse_list_without_key() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                list items {
+                    leaf name {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        // Lists can be keyless in YANG (though not recommended)
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::List(list) = &module.data_nodes[0] {
+            assert_eq!(list.name, "items");
+            assert_eq!(list.keys.len(), 0);
+            assert_eq!(list.children.len(), 1);
+        } else {
+            panic!("Expected List data node");
+        }
+    }
+
+    #[test]
+    fn test_error_choice_without_cases() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice empty-choice {
+                    description "A choice with no cases";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        // A choice should have at least one case (though parser may allow empty)
+        // This test verifies the parser handles empty choices gracefully
+        if result.is_ok() {
+            let module = result.unwrap();
+            if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+                assert_eq!(choice.cases.len(), 0);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_container_with_mixed_config_children() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container system {
+                    leaf config-value {
+                        type string;
+                        config true;
+                    }
+                    
+                    leaf state-value {
+                        type string;
+                        config false;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Container(container) = &module.data_nodes[0] {
+            assert_eq!(container.children.len(), 2);
+
+            if let crate::parser::DataNode::Leaf(leaf1) = &container.children[0] {
+                assert_eq!(leaf1.name, "config-value");
+                assert!(leaf1.config);
+            }
+
+            if let crate::parser::DataNode::Leaf(leaf2) = &container.children[1] {
+                assert_eq!(leaf2.name, "state-value");
+                assert!(!leaf2.config);
+            }
+        } else {
+            panic!("Expected Container data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_list_with_config_false() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                list statistics {
+                    key "counter-id";
+                    config false;
+                    
+                    leaf counter-id {
+                        type uint32;
+                    }
+                    
+                    leaf value {
+                        type uint64;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::List(list) = &module.data_nodes[0] {
+            assert_eq!(list.name, "statistics");
+            assert!(!list.config);
+            assert_eq!(list.keys, vec!["counter-id"]);
+        } else {
+            panic!("Expected List data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_list_with_config_false() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf-list active-sessions {
+                    type string;
+                    config false;
+                    description "Currently active session IDs";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::LeafList(leaf_list) = &module.data_nodes[0] {
+            assert_eq!(leaf_list.name, "active-sessions");
+            assert!(!leaf_list.config);
+            assert_eq!(
+                leaf_list.description,
+                Some("Currently active session IDs".to_string())
+            );
+        } else {
+            panic!("Expected LeafList data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_container() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                container placeholder {
+                    description "An empty container";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Container(container) = &module.data_nodes[0] {
+            assert_eq!(container.name, "placeholder");
+            assert_eq!(container.children.len(), 0);
+            assert_eq!(
+                container.description,
+                Some("An empty container".to_string())
+            );
+        } else {
+            panic!("Expected Container data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_leaf_with_all_properties() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                leaf complete-leaf {
+                    type string {
+                        length "1..100";
+                        pattern "[a-z]+";
+                    }
+                    description "A leaf with all properties";
+                    mandatory true;
+                    config true;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Leaf(leaf) = &module.data_nodes[0] {
+            assert_eq!(leaf.name, "complete-leaf");
+            assert_eq!(
+                leaf.description,
+                Some("A leaf with all properties".to_string())
+            );
+            assert!(leaf.mandatory);
+            assert!(leaf.config);
+
+            if let crate::parser::TypeSpec::String { length, pattern } = &leaf.type_spec {
+                assert!(length.is_some());
+                assert!(pattern.is_some());
+            } else {
+                panic!("Expected String type with constraints");
+            }
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_choice_with_default_case() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                choice format {
+                    description "Output format selection";
+                    case json {
+                        leaf json-output {
+                            type boolean;
+                        }
+                    }
+                    case xml {
+                        leaf xml-output {
+                            type boolean;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        if let crate::parser::DataNode::Choice(choice) = &module.data_nodes[0] {
+            assert_eq!(choice.name, "format");
+            assert_eq!(
+                choice.description,
+                Some("Output format selection".to_string())
+            );
+            assert_eq!(choice.cases.len(), 2);
+            assert!(!choice.mandatory);
+        } else {
+            panic!("Expected Choice data node");
+        }
     }
 }

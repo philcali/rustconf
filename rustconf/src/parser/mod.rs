@@ -128,6 +128,7 @@ impl ModuleParser {
         let mut imports = Vec::new();
         let mut typedefs = Vec::new();
         let mut groupings = Vec::new();
+        let mut data_nodes = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -148,6 +149,21 @@ impl ModuleParser {
                 }
                 Token::Grouping => {
                     groupings.push(self.parse_grouping()?);
+                }
+                Token::Container => {
+                    data_nodes.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    data_nodes.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    data_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    data_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                Token::Choice => {
+                    data_nodes.push(DataNode::Choice(self.parse_choice()?));
                 }
                 _ => {
                     // Skip unknown statements for now
@@ -174,7 +190,7 @@ impl ModuleParser {
             imports,
             typedefs,
             groupings,
-            data_nodes: Vec::new(),
+            data_nodes,
             rpcs: Vec::new(),
             notifications: Vec::new(),
         })
@@ -362,7 +378,9 @@ impl ModuleParser {
     fn parse_type_spec(&mut self) -> Result<TypeSpec, ParseError> {
         self.expect(Token::Type)?;
 
-        let type_name = match self.peek() {
+        let base_type = self.peek().clone();
+
+        let mut type_spec = match base_type {
             Token::Int8 => {
                 self.advance();
                 TypeSpec::Int8 { range: None }
@@ -414,6 +432,20 @@ impl ModuleParser {
                 self.advance();
                 TypeSpec::Binary { length: None }
             }
+            Token::Enumeration => {
+                self.advance();
+                TypeSpec::Enumeration { values: Vec::new() }
+            }
+            Token::Union => {
+                self.advance();
+                TypeSpec::Union { types: Vec::new() }
+            }
+            Token::LeafRef => {
+                self.advance();
+                TypeSpec::LeafRef {
+                    path: String::new(),
+                }
+            }
             Token::Identifier(_) => {
                 // Could be a typedef reference or other type
                 // For now, treat as string type
@@ -423,20 +455,264 @@ impl ModuleParser {
                     pattern: None,
                 }
             }
-            token => return Err(self.error(format!("Expected type name, found {:?}", token))),
+            _ => return Err(self.error(format!("Expected type name, found {:?}", base_type))),
         };
 
-        // Check for type body (constraints, etc.)
+        // Check for type body (constraints, enum values, union types, etc.)
         if self.peek() == &Token::LeftBrace {
             self.advance();
-            // Skip type body for now
-            self.skip_block()?;
+            type_spec = self.parse_type_body(type_spec)?;
+            self.expect(Token::RightBrace)?;
+            // No semicolon after type body - the type statement ends with the closing brace
+        } else {
+            // Expect semicolon after simple type (no body)
+            self.expect(Token::Semicolon)?;
         }
 
-        // Expect semicolon after type statement
+        Ok(type_spec)
+    }
+
+    /// Parse type body (constraints, enum values, union types)
+    fn parse_type_body(&mut self, mut type_spec: TypeSpec) -> Result<TypeSpec, ParseError> {
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Range => {
+                    let range = self.parse_range_constraint()?;
+                    type_spec = match type_spec {
+                        TypeSpec::Int8 { .. } => TypeSpec::Int8 { range: Some(range) },
+                        TypeSpec::Int16 { .. } => TypeSpec::Int16 { range: Some(range) },
+                        TypeSpec::Int32 { .. } => TypeSpec::Int32 { range: Some(range) },
+                        TypeSpec::Int64 { .. } => TypeSpec::Int64 { range: Some(range) },
+                        TypeSpec::Uint8 { .. } => TypeSpec::Uint8 { range: Some(range) },
+                        TypeSpec::Uint16 { .. } => TypeSpec::Uint16 { range: Some(range) },
+                        TypeSpec::Uint32 { .. } => TypeSpec::Uint32 { range: Some(range) },
+                        TypeSpec::Uint64 { .. } => TypeSpec::Uint64 { range: Some(range) },
+                        _ => type_spec,
+                    };
+                }
+                Token::Length => {
+                    let length = self.parse_length_constraint()?;
+                    type_spec = match type_spec {
+                        TypeSpec::String { pattern, .. } => TypeSpec::String {
+                            length: Some(length),
+                            pattern,
+                        },
+                        TypeSpec::Binary { .. } => TypeSpec::Binary {
+                            length: Some(length),
+                        },
+                        _ => type_spec,
+                    };
+                }
+                Token::Pattern => {
+                    let pattern = self.parse_pattern_constraint()?;
+                    type_spec = match type_spec {
+                        TypeSpec::String { length, .. } => TypeSpec::String {
+                            length,
+                            pattern: Some(pattern),
+                        },
+                        _ => type_spec,
+                    };
+                }
+                Token::Enum => {
+                    let enum_value = self.parse_enum_value()?;
+                    if let TypeSpec::Enumeration { ref mut values } = type_spec {
+                        values.push(enum_value);
+                    }
+                }
+                Token::Type => {
+                    // Union type member
+                    let member_type = self.parse_type_spec()?;
+                    if let TypeSpec::Union { ref mut types } = type_spec {
+                        types.push(member_type);
+                    }
+                }
+                Token::Identifier(ref id) if id == "path" => {
+                    // leafref path
+                    self.advance();
+                    let path = match self.advance() {
+                        Token::StringLiteral(s) | Token::Identifier(s) => s,
+                        token => {
+                            return Err(
+                                self.error(format!("Expected path value, found {:?}", token))
+                            )
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                    if let TypeSpec::LeafRef { .. } = type_spec {
+                        type_spec = TypeSpec::LeafRef { path };
+                    }
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+        Ok(type_spec)
+    }
+
+    /// Parse range constraint: range "min..max | min..max"
+    fn parse_range_constraint(&mut self) -> Result<RangeConstraint, ParseError> {
+        self.expect(Token::Range)?;
+
+        let range_str = match self.advance() {
+            Token::StringLiteral(s) | Token::Identifier(s) => s,
+            token => return Err(self.error(format!("Expected range value, found {:?}", token))),
+        };
+
         self.expect(Token::Semicolon)?;
 
-        Ok(type_name)
+        // Parse range string: "1..10 | 20..30"
+        let ranges = self.parse_range_string(&range_str)?;
+        Ok(RangeConstraint::new(ranges))
+    }
+
+    /// Parse range string into Range objects
+    fn parse_range_string(&self, range_str: &str) -> Result<Vec<Range>, ParseError> {
+        let mut ranges = Vec::new();
+
+        for part in range_str.split('|') {
+            let part = part.trim();
+            if part.contains("..") {
+                let parts: Vec<&str> = part.split("..").collect();
+                if parts.len() == 2 {
+                    let min = parts[0].trim().parse::<i64>().map_err(|_| {
+                        self.error(format!("Invalid range min value: {}", parts[0]))
+                    })?;
+                    let max = parts[1].trim().parse::<i64>().map_err(|_| {
+                        self.error(format!("Invalid range max value: {}", parts[1]))
+                    })?;
+                    ranges.push(Range::new(min, max));
+                }
+            } else {
+                // Single value range
+                let value = part
+                    .parse::<i64>()
+                    .map_err(|_| self.error(format!("Invalid range value: {}", part)))?;
+                ranges.push(Range::new(value, value));
+            }
+        }
+
+        Ok(ranges)
+    }
+
+    /// Parse length constraint: length "min..max | min..max"
+    fn parse_length_constraint(&mut self) -> Result<LengthConstraint, ParseError> {
+        self.expect(Token::Length)?;
+
+        let length_str = match self.advance() {
+            Token::StringLiteral(s) | Token::Identifier(s) => s,
+            token => return Err(self.error(format!("Expected length value, found {:?}", token))),
+        };
+
+        self.expect(Token::Semicolon)?;
+
+        // Parse length string: "1..10 | 20..30"
+        let lengths = self.parse_length_string(&length_str)?;
+        Ok(LengthConstraint::new(lengths))
+    }
+
+    /// Parse length string into LengthRange objects
+    fn parse_length_string(&self, length_str: &str) -> Result<Vec<LengthRange>, ParseError> {
+        let mut lengths = Vec::new();
+
+        for part in length_str.split('|') {
+            let part = part.trim();
+            if part.contains("..") {
+                let parts: Vec<&str> = part.split("..").collect();
+                if parts.len() == 2 {
+                    let min = parts[0].trim().parse::<u64>().map_err(|_| {
+                        self.error(format!("Invalid length min value: {}", parts[0]))
+                    })?;
+                    let max = parts[1].trim().parse::<u64>().map_err(|_| {
+                        self.error(format!("Invalid length max value: {}", parts[1]))
+                    })?;
+                    lengths.push(LengthRange::new(min, max));
+                }
+            } else {
+                // Single value length
+                let value = part
+                    .parse::<u64>()
+                    .map_err(|_| self.error(format!("Invalid length value: {}", part)))?;
+                lengths.push(LengthRange::new(value, value));
+            }
+        }
+
+        Ok(lengths)
+    }
+
+    /// Parse pattern constraint: pattern "regex"
+    fn parse_pattern_constraint(&mut self) -> Result<PatternConstraint, ParseError> {
+        self.expect(Token::Pattern)?;
+
+        let pattern = match self.advance() {
+            Token::StringLiteral(s) => s,
+            token => return Err(self.error(format!("Expected pattern string, found {:?}", token))),
+        };
+
+        self.expect(Token::Semicolon)?;
+
+        Ok(PatternConstraint::new(pattern))
+    }
+
+    /// Parse enum value: enum <identifier> [{ value <number>; description <string>; }]
+    fn parse_enum_value(&mut self) -> Result<EnumValue, ParseError> {
+        self.expect(Token::Enum)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected enum name, found {:?}", token))),
+        };
+
+        let mut value = None;
+        let mut description = None;
+
+        if self.peek() == &Token::LeftBrace {
+            self.advance();
+
+            while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+                match self.peek() {
+                    Token::Identifier(ref id) if id == "value" => {
+                        self.advance();
+                        value = Some(match self.advance() {
+                            Token::Number(n) => n as i32,
+                            token => {
+                                return Err(self.error(format!(
+                                    "Expected enum value number, found {:?}",
+                                    token
+                                )))
+                            }
+                        });
+                        self.expect(Token::Semicolon)?;
+                    }
+                    Token::Description => {
+                        self.advance();
+                        description = Some(match self.advance() {
+                            Token::StringLiteral(s) => s,
+                            token => {
+                                return Err(self.error(format!(
+                                    "Expected description string, found {:?}",
+                                    token
+                                )))
+                            }
+                        });
+                        self.expect(Token::Semicolon)?;
+                    }
+                    _ => {
+                        self.skip_statement()?;
+                    }
+                }
+            }
+
+            self.expect(Token::RightBrace)?;
+        } else {
+            self.expect(Token::Semicolon)?;
+        }
+
+        Ok(EnumValue {
+            name,
+            value,
+            description,
+        })
     }
 
     /// Parse grouping statement: grouping <identifier> { <data-definition-statements> }
@@ -507,7 +783,7 @@ impl ModuleParser {
         let mut description = None;
         let mut config = true;
         let mut mandatory = false;
-        let children = Vec::new();
+        let mut children = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -546,6 +822,21 @@ impl ModuleParser {
                     };
                     self.expect(Token::Semicolon)?;
                 }
+                Token::Container => {
+                    children.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    children.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    children.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    children.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                Token::Choice => {
+                    children.push(DataNode::Choice(self.parse_choice()?));
+                }
                 _ => {
                     self.skip_statement()?;
                 }
@@ -577,7 +868,7 @@ impl ModuleParser {
         let mut description = None;
         let mut config = true;
         let mut keys = Vec::new();
-        let children = Vec::new();
+        let mut children = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -615,6 +906,21 @@ impl ModuleParser {
                     // Split space-separated keys
                     keys.extend(key_str.split_whitespace().map(String::from));
                     self.expect(Token::Semicolon)?;
+                }
+                Token::Container => {
+                    children.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    children.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    children.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    children.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                Token::Choice => {
+                    children.push(DataNode::Choice(self.parse_choice()?));
                 }
                 _ => {
                     self.skip_statement()?;
@@ -784,6 +1090,145 @@ impl ModuleParser {
             description,
             type_spec,
             config,
+        })
+    }
+
+    /// Parse choice statement: choice <identifier> { <case-statements> }
+    fn parse_choice(&mut self) -> Result<Choice, ParseError> {
+        self.expect(Token::Choice)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected choice name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut mandatory = false;
+        let mut cases = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Mandatory => {
+                    self.advance();
+                    mandatory = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Case => {
+                    cases.push(self.parse_case()?);
+                }
+                // Shorthand: data nodes directly in choice are implicitly wrapped in a case
+                Token::Container | Token::List | Token::Leaf | Token::LeafList => {
+                    let data_node = match self.peek() {
+                        Token::Container => DataNode::Container(self.parse_container()?),
+                        Token::List => DataNode::List(self.parse_list()?),
+                        Token::Leaf => DataNode::Leaf(self.parse_leaf()?),
+                        Token::LeafList => DataNode::LeafList(self.parse_leaf_list()?),
+                        _ => unreachable!(),
+                    };
+                    // Create an implicit case with the same name as the data node
+                    let case_name = match &data_node {
+                        DataNode::Container(c) => c.name.clone(),
+                        DataNode::List(l) => l.name.clone(),
+                        DataNode::Leaf(l) => l.name.clone(),
+                        DataNode::LeafList(l) => l.name.clone(),
+                        _ => unreachable!(),
+                    };
+                    cases.push(Case {
+                        name: case_name,
+                        description: None,
+                        data_nodes: vec![data_node],
+                    });
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Choice {
+            name,
+            description,
+            mandatory,
+            cases,
+        })
+    }
+
+    /// Parse case statement: case <identifier> { <data-definition-statements> }
+    fn parse_case(&mut self) -> Result<Case, ParseError> {
+        self.expect(Token::Case)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected case name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut data_nodes = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Container => {
+                    data_nodes.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    data_nodes.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    data_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    data_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                Token::Choice => {
+                    data_nodes.push(DataNode::Choice(self.parse_choice()?));
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Case {
+            name,
+            description,
+            data_nodes,
         })
     }
 
