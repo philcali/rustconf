@@ -126,6 +126,8 @@ impl ModuleParser {
         let mut namespace = None;
         let mut prefix = None;
         let mut imports = Vec::new();
+        let mut typedefs = Vec::new();
+        let mut groupings = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -140,6 +142,12 @@ impl ModuleParser {
                 }
                 Token::Import => {
                     imports.push(self.parse_import()?);
+                }
+                Token::Typedef => {
+                    typedefs.push(self.parse_typedef()?);
+                }
+                Token::Grouping => {
+                    groupings.push(self.parse_grouping()?);
                 }
                 _ => {
                     // Skip unknown statements for now
@@ -164,8 +172,8 @@ impl ModuleParser {
             prefix,
             yang_version,
             imports,
-            typedefs: Vec::new(),
-            groupings: Vec::new(),
+            typedefs,
+            groupings,
             data_nodes: Vec::new(),
             rpcs: Vec::new(),
             notifications: Vec::new(),
@@ -268,6 +276,514 @@ impl ModuleParser {
             module,
             prefix,
             revision,
+        })
+    }
+
+    /// Parse typedef statement: typedef <identifier> { type <type-spec>; [units <string>;] [default <string>;] [description <string>;] }
+    fn parse_typedef(&mut self) -> Result<TypeDef, ParseError> {
+        self.expect(Token::Typedef)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected typedef name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut type_spec = None;
+        let mut units = None;
+        let mut default = None;
+        let mut description = None;
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Type => {
+                    type_spec = Some(self.parse_type_spec()?);
+                }
+                Token::Units => {
+                    self.advance();
+                    units = Some(match self.advance() {
+                        Token::StringLiteral(s) | Token::Identifier(s) => s,
+                        token => {
+                            return Err(
+                                self.error(format!("Expected units value, found {:?}", token))
+                            )
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Default => {
+                    self.advance();
+                    default = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        Token::Identifier(s) => s,
+                        Token::Number(n) => n.to_string(),
+                        token => {
+                            return Err(
+                                self.error(format!("Expected default value, found {:?}", token))
+                            )
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        let type_spec = type_spec.ok_or_else(|| {
+            self.error("Missing required 'type' statement in typedef".to_string())
+        })?;
+
+        Ok(TypeDef {
+            name,
+            type_spec,
+            units,
+            default,
+            description,
+        })
+    }
+
+    /// Parse type specification: type <type-name> [{ <type-body> }]
+    fn parse_type_spec(&mut self) -> Result<TypeSpec, ParseError> {
+        self.expect(Token::Type)?;
+
+        let type_name = match self.peek() {
+            Token::Int8 => {
+                self.advance();
+                TypeSpec::Int8 { range: None }
+            }
+            Token::Int16 => {
+                self.advance();
+                TypeSpec::Int16 { range: None }
+            }
+            Token::Int32 => {
+                self.advance();
+                TypeSpec::Int32 { range: None }
+            }
+            Token::Int64 => {
+                self.advance();
+                TypeSpec::Int64 { range: None }
+            }
+            Token::Uint8 => {
+                self.advance();
+                TypeSpec::Uint8 { range: None }
+            }
+            Token::Uint16 => {
+                self.advance();
+                TypeSpec::Uint16 { range: None }
+            }
+            Token::Uint32 => {
+                self.advance();
+                TypeSpec::Uint32 { range: None }
+            }
+            Token::Uint64 => {
+                self.advance();
+                TypeSpec::Uint64 { range: None }
+            }
+            Token::String => {
+                self.advance();
+                TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                }
+            }
+            Token::Boolean => {
+                self.advance();
+                TypeSpec::Boolean
+            }
+            Token::Empty => {
+                self.advance();
+                TypeSpec::Empty
+            }
+            Token::Binary => {
+                self.advance();
+                TypeSpec::Binary { length: None }
+            }
+            Token::Identifier(_) => {
+                // Could be a typedef reference or other type
+                // For now, treat as string type
+                self.advance();
+                TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                }
+            }
+            token => return Err(self.error(format!("Expected type name, found {:?}", token))),
+        };
+
+        // Check for type body (constraints, etc.)
+        if self.peek() == &Token::LeftBrace {
+            self.advance();
+            // Skip type body for now
+            self.skip_block()?;
+        }
+
+        // Expect semicolon after type statement
+        self.expect(Token::Semicolon)?;
+
+        Ok(type_name)
+    }
+
+    /// Parse grouping statement: grouping <identifier> { <data-definition-statements> }
+    fn parse_grouping(&mut self) -> Result<Grouping, ParseError> {
+        self.expect(Token::Grouping)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected grouping name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut data_nodes = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Container => {
+                    data_nodes.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    data_nodes.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    data_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    data_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Grouping {
+            name,
+            description,
+            data_nodes,
+        })
+    }
+
+    /// Parse container statement: container <identifier> { <statements> }
+    fn parse_container(&mut self) -> Result<Container, ParseError> {
+        self.expect(Token::Container)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected container name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut config = true;
+        let mut mandatory = false;
+        let children = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Config => {
+                    self.advance();
+                    config = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Mandatory => {
+                    self.advance();
+                    mandatory = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Container {
+            name,
+            description,
+            config,
+            mandatory,
+            children,
+        })
+    }
+
+    /// Parse list statement: list <identifier> { <statements> }
+    fn parse_list(&mut self) -> Result<List, ParseError> {
+        self.expect(Token::List)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected list name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut config = true;
+        let mut keys = Vec::new();
+        let children = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Config => {
+                    self.advance();
+                    config = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Key => {
+                    self.advance();
+                    let key_str = match self.advance() {
+                        Token::StringLiteral(s) | Token::Identifier(s) => s,
+                        token => {
+                            return Err(self.error(format!("Expected key value, found {:?}", token)))
+                        }
+                    };
+                    // Split space-separated keys
+                    keys.extend(key_str.split_whitespace().map(String::from));
+                    self.expect(Token::Semicolon)?;
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(List {
+            name,
+            description,
+            config,
+            keys,
+            children,
+        })
+    }
+
+    /// Parse leaf statement: leaf <identifier> { type <type-spec>; <statements> }
+    fn parse_leaf(&mut self) -> Result<Leaf, ParseError> {
+        self.expect(Token::Leaf)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected leaf name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut type_spec = None;
+        let mut description = None;
+        let mut mandatory = false;
+        let mut default = None;
+        let mut config = true;
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Type => {
+                    type_spec = Some(self.parse_type_spec()?);
+                }
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Mandatory => {
+                    self.advance();
+                    mandatory = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Default => {
+                    self.advance();
+                    default = Some(match self.advance() {
+                        Token::StringLiteral(s) | Token::Identifier(s) => s,
+                        Token::Number(n) => n.to_string(),
+                        token => {
+                            return Err(
+                                self.error(format!("Expected default value, found {:?}", token))
+                            )
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Config => {
+                    self.advance();
+                    config = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        let type_spec = type_spec
+            .ok_or_else(|| self.error("Missing required 'type' statement in leaf".to_string()))?;
+
+        Ok(Leaf {
+            name,
+            description,
+            type_spec,
+            mandatory,
+            default,
+            config,
+        })
+    }
+
+    /// Parse leaf-list statement: leaf-list <identifier> { type <type-spec>; <statements> }
+    fn parse_leaf_list(&mut self) -> Result<LeafList, ParseError> {
+        self.expect(Token::LeafList)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected leaf-list name, found {:?}", token))),
+        };
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut type_spec = None;
+        let mut description = None;
+        let mut config = true;
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Type => {
+                    type_spec = Some(self.parse_type_spec()?);
+                }
+                Token::Description => {
+                    self.advance();
+                    description = Some(match self.advance() {
+                        Token::StringLiteral(s) => s,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected description string, found {:?}", token)))
+                        }
+                    });
+                    self.expect(Token::Semicolon)?;
+                }
+                Token::Config => {
+                    self.advance();
+                    config = match self.advance() {
+                        Token::Identifier(s) if s == "true" => true,
+                        Token::Identifier(s) if s == "false" => false,
+                        token => {
+                            return Err(self
+                                .error(format!("Expected 'true' or 'false', found {:?}", token)))
+                        }
+                    };
+                    self.expect(Token::Semicolon)?;
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        let type_spec = type_spec.ok_or_else(|| {
+            self.error("Missing required 'type' statement in leaf-list".to_string())
+        })?;
+
+        Ok(LeafList {
+            name,
+            description,
+            type_spec,
+            config,
         })
     }
 

@@ -364,4 +364,332 @@ mod tests {
         assert!(module.rpcs.is_empty());
         assert!(module.notifications.is_empty());
     }
+
+    // Task 4.3: Tests for typedef and grouping parsing
+
+    #[test]
+    fn test_parse_typedef_simple() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef percent {
+                    type uint8;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with typedef: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 1);
+        assert_eq!(module.typedefs[0].name, "percent");
+    }
+
+    #[test]
+    fn test_parse_typedef_with_description() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef port-number {
+                    type uint16;
+                    description "A TCP/UDP port number";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 1);
+        assert_eq!(module.typedefs[0].name, "port-number");
+        assert_eq!(
+            module.typedefs[0].description,
+            Some("A TCP/UDP port number".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_typedef_with_units_and_default() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef temperature {
+                    type int32;
+                    units "celsius";
+                    default 20;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 1);
+        assert_eq!(module.typedefs[0].name, "temperature");
+        assert_eq!(module.typedefs[0].units, Some("celsius".to_string()));
+        assert_eq!(module.typedefs[0].default, Some("20".to_string()));
+    }
+
+    #[test]
+    fn test_parse_multiple_typedefs() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef percent {
+                    type uint8;
+                }
+                
+                typedef counter32 {
+                    type uint32;
+                    description "32-bit counter";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 2);
+        assert_eq!(module.typedefs[0].name, "percent");
+        assert_eq!(module.typedefs[1].name, "counter32");
+    }
+
+    #[test]
+    fn test_parse_grouping_simple() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                grouping endpoint {
+                    leaf address {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with grouping: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+        assert_eq!(module.groupings.len(), 1);
+        assert_eq!(module.groupings[0].name, "endpoint");
+        assert_eq!(module.groupings[0].data_nodes.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_grouping_with_description() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                grouping target {
+                    description "Target endpoint configuration";
+                    leaf ip {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.groupings.len(), 1);
+        assert_eq!(module.groupings[0].name, "target");
+        assert_eq!(
+            module.groupings[0].description,
+            Some("Target endpoint configuration".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_grouping_with_multiple_nodes() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                grouping server-config {
+                    leaf hostname {
+                        type string;
+                    }
+                    leaf port {
+                        type uint16;
+                    }
+                    container options {
+                        leaf timeout {
+                            type uint32;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.groupings.len(), 1);
+        assert_eq!(module.groupings[0].name, "server-config");
+        assert_eq!(module.groupings[0].data_nodes.len(), 3);
+    }
+
+    #[test]
+    fn test_parse_grouping_with_list() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                grouping interface-list {
+                    list interface {
+                        key "name";
+                        leaf name {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.groupings.len(), 1);
+        assert_eq!(module.groupings[0].data_nodes.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_module_with_typedefs_and_groupings() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef percent {
+                    type uint8;
+                }
+                
+                grouping stats {
+                    leaf count {
+                        type uint32;
+                    }
+                }
+                
+                typedef counter {
+                    type uint64;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 2);
+        assert_eq!(module.groupings.len(), 1);
+    }
+
+    #[test]
+    fn test_error_typedef_missing_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef bad {
+                    description "Missing type";
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ParseError::SyntaxError { message, .. } => {
+                assert!(message.contains("type"));
+            }
+            _ => panic!("Expected SyntaxError for missing type in typedef"),
+        }
+    }
+
+    #[test]
+    fn test_parse_typedef_with_string_type() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                typedef name-string {
+                    type string;
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.typedefs.len(), 1);
+        assert_eq!(module.typedefs[0].name, "name-string");
+    }
+
+    #[test]
+    fn test_parse_grouping_empty() {
+        let input = r#"
+            module test {
+                namespace "urn:test";
+                prefix test;
+                
+                grouping empty-group {
+                }
+            }
+        "#;
+
+        let parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+        assert_eq!(module.groupings.len(), 1);
+        assert_eq!(module.groupings[0].name, "empty-group");
+        assert!(module.groupings[0].data_nodes.is_empty());
+    }
 }
