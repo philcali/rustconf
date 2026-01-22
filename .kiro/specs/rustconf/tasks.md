@@ -50,14 +50,14 @@ This implementation plan breaks down the rustconf library into incremental codin
     - _Requirements: 2.1, 2.5_
 
 - [ ] 4. Implement YANG statement parsers
-  - [ ] 4.1 Parse module header statements
+  - [x] 4.1 Parse module header statements
     - Implement parsers for yang-version, namespace, prefix, import using nom
     - Build ModuleHeader from parsed statements
     - Implement YangParser::parse_string and parse_file methods
     - Handle basic module structure: module name { statements }
     - _Requirements: 1.1, 1.2, 1.4_
   
-  - [ ] 4.2 Write unit tests for module header parsing
+  - [x] 4.2 Write unit tests for module header parsing
     - Test parsing simple module with namespace and prefix
     - Test parsing module with yang-version statement
     - Test parsing module with import statements
