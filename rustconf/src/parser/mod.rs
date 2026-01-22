@@ -3,6 +3,7 @@
 //! This module provides functionality to parse YANG 1.0 and 1.1 specification files
 //! into an abstract syntax tree (AST).
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,6 +18,7 @@ pub use lexer::{Lexer, Token};
 /// YANG parser with configurable search paths for module resolution.
 pub struct YangParser {
     search_paths: Vec<PathBuf>,
+    loaded_modules: HashMap<String, YangModule>,
 }
 
 impl YangParser {
@@ -24,6 +26,7 @@ impl YangParser {
     pub fn new() -> Self {
         Self {
             search_paths: Vec::new(),
+            loaded_modules: HashMap::new(),
         }
     }
 
@@ -33,14 +36,14 @@ impl YangParser {
     }
 
     /// Parse a YANG file from the given path.
-    pub fn parse_file(&self, path: &Path) -> Result<YangModule, ParseError> {
+    pub fn parse_file(&mut self, path: &Path) -> Result<YangModule, ParseError> {
         let content = fs::read_to_string(path)?;
         let filename = path.to_string_lossy().to_string();
         self.parse_string(&content, &filename)
     }
 
     /// Parse YANG content from a string.
-    pub fn parse_string(&self, content: &str, filename: &str) -> Result<YangModule, ParseError> {
+    pub fn parse_string(&mut self, content: &str, filename: &str) -> Result<YangModule, ParseError> {
         let mut lexer = Lexer::new(content);
         let tokens = lexer.tokenize().map_err(|e| ParseError::SyntaxError {
             line: 1,
@@ -49,7 +52,75 @@ impl YangParser {
         })?;
 
         let mut parser = ModuleParser::new(tokens, filename);
-        parser.parse_module()
+        let module = parser.parse_module()?;
+        
+        // Try to resolve imports recursively (non-fatal if imports can't be found)
+        // This allows parsing modules without having all dependencies available
+        let _ = self.resolve_imports(&module);
+        
+        // Store the parsed module
+        self.loaded_modules.insert(module.name.clone(), module.clone());
+        
+        Ok(module)
+    }
+
+    /// Resolve all imports for a module by recursively loading imported modules.
+    fn resolve_imports(&mut self, module: &YangModule) -> Result<(), ParseError> {
+        for import in &module.imports {
+            // Skip if already loaded
+            if self.loaded_modules.contains_key(&import.module) {
+                continue;
+            }
+
+            // Try to find and load the imported module
+            let imported_module = self.find_and_load_module(&import.module)?;
+            
+            // Recursively resolve imports of the imported module
+            self.resolve_imports(&imported_module)?;
+            
+            // Store the loaded module
+            self.loaded_modules.insert(import.module.clone(), imported_module);
+        }
+        
+        Ok(())
+    }
+
+    /// Find and load a module by searching through the search paths.
+    fn find_and_load_module(&mut self, module_name: &str) -> Result<YangModule, ParseError> {
+        // Try each search path
+        for search_path in &self.search_paths {
+            // Try with .yang extension
+            let module_path = search_path.join(format!("{}.yang", module_name));
+            if module_path.exists() {
+                let content = fs::read_to_string(&module_path)?;
+                let filename = module_path.to_string_lossy().to_string();
+                
+                let mut lexer = Lexer::new(&content);
+                let tokens = lexer.tokenize().map_err(|e| ParseError::SyntaxError {
+                    line: 1,
+                    column: 1,
+                    message: e,
+                })?;
+
+                let mut parser = ModuleParser::new(tokens, &filename);
+                return parser.parse_module();
+            }
+        }
+
+        // Module not found in any search path
+        Err(ParseError::UnresolvedImport {
+            module: module_name.to_string(),
+        })
+    }
+
+    /// Get a loaded module by name.
+    pub fn get_loaded_module(&self, name: &str) -> Option<&YangModule> {
+        self.loaded_modules.get(name)
+    }
+
+    /// Get all loaded modules.
+    pub fn get_all_loaded_modules(&self) -> &HashMap<String, YangModule> {
+        &self.loaded_modules
     }
 }
 

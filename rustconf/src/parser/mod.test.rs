@@ -18,7 +18,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(
@@ -45,7 +45,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -74,7 +74,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -96,7 +96,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_err());
@@ -116,7 +116,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_err());
@@ -143,7 +143,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -167,7 +167,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -194,7 +194,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -230,7 +230,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -271,7 +271,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -305,7 +305,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -341,7 +341,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -376,7 +376,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -411,7 +411,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -442,7 +442,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -472,7 +472,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -514,7 +514,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -559,7 +559,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -592,7 +592,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -629,7 +629,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -692,7 +692,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -751,7 +751,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -812,7 +812,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -866,7 +866,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_err());
@@ -891,7 +891,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_err());
@@ -924,7 +924,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -968,7 +968,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -998,7 +998,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1028,7 +1028,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1058,7 +1058,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1087,7 +1087,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1124,7 +1124,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1164,7 +1164,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1201,7 +1201,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1237,7 +1237,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1279,7 +1279,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1326,7 +1326,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1371,7 +1371,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1411,7 +1411,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1453,7 +1453,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1485,7 +1485,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1518,7 +1518,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1550,7 +1550,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1640,7 +1640,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1698,7 +1698,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1771,7 +1771,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         // Lists can be keyless in YANG (though not recommended)
@@ -1800,7 +1800,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         // A choice should have at least one case (though parser may allow empty)
@@ -1833,7 +1833,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1878,7 +1878,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1908,7 +1908,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -1939,7 +1939,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok(), "Failed to parse: {:?}", result.err());
@@ -1976,7 +1976,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -2025,7 +2025,7 @@ mod tests {
             }
         "#;
 
-        let parser = YangParser::new();
+        let mut parser = YangParser::new();
         let result = parser.parse_string(input, "test.yang");
 
         assert!(result.is_ok());
@@ -2042,5 +2042,341 @@ mod tests {
         } else {
             panic!("Expected Choice data node");
         }
+    }
+
+    // Task 5.2: Unit tests for import resolution
+    // Requirements: 1.4, 7.4
+
+    #[test]
+    fn test_resolve_imports_from_search_paths() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create imported module
+        let imported_content = r#"
+            module ietf_yang_types {
+                namespace "urn:ietf:params:xml:ns:yang:ietf-yang-types";
+                prefix yang;
+            }
+        "#;
+        let imported_path = temp_dir.path().join("ietf-yang-types.yang");
+        fs::write(&imported_path, imported_content).unwrap();
+
+        // Create main module that imports the above
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import ietf-yang-types {
+                    prefix yang;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok(), "Failed to parse module with imports: {:?}", result.err());
+
+        let module = result.unwrap();
+        assert_eq!(module.name, "main");
+        assert_eq!(module.imports.len(), 1);
+
+        // Verify the imported module was loaded
+        let loaded = parser.get_loaded_module("ietf-yang-types");
+        assert!(loaded.is_some(), "Imported module should be loaded");
+        assert_eq!(loaded.unwrap().name, "ietf_yang_types");
+    }
+
+    #[test]
+    fn test_handle_missing_imported_modules() {
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import missing_module {
+                    prefix miss;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        // No search paths added, so import will fail
+
+        // Parse should succeed but import resolution fails silently
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok(), "Parsing should succeed even if imports can't be resolved");
+
+        // The missing module should not be in loaded modules
+        assert!(parser.get_loaded_module("missing-module").is_none());
+    }
+
+    #[test]
+    fn test_recursive_import_loading() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a chain of imports: main -> modulea -> moduleb
+        let module_b_content = r#"
+            module moduleb {
+                namespace "urn:module-b";
+                prefix b;
+            }
+        "#;
+        let module_b_path = temp_dir.path().join("moduleb.yang");
+        fs::write(&module_b_path, module_b_content).unwrap();
+
+        let module_a_content = r#"
+            module modulea {
+                namespace "urn:module-a";
+                prefix a;
+                
+                import moduleb {
+                    prefix b;
+                }
+            }
+        "#;
+        let module_a_path = temp_dir.path().join("modulea.yang");
+        fs::write(&module_a_path, module_a_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import modulea {
+                    prefix a;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok(), "Failed to parse module with recursive imports: {:?}", result.err());
+
+        // Verify all modules in the chain were loaded
+        assert!(parser.get_loaded_module("main").is_some());
+        assert!(parser.get_loaded_module("modulea").is_some());
+        assert!(parser.get_loaded_module("moduleb").is_some());
+    }
+
+    #[test]
+    fn test_avoid_duplicate_parsing() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a shared module
+        let shared_content = r#"
+            module shared {
+                namespace "urn:shared";
+                prefix shared;
+            }
+        "#;
+        let shared_path = temp_dir.path().join("shared.yang");
+        fs::write(&shared_path, shared_content).unwrap();
+
+        // Create two modules that both import the shared module
+        let module_a_content = r#"
+            module modulea {
+                namespace "urn:module-a";
+                prefix a;
+                
+                import shared {
+                    prefix shared;
+                }
+            }
+        "#;
+        let module_a_path = temp_dir.path().join("modulea.yang");
+        fs::write(&module_a_path, module_a_content).unwrap();
+
+        let module_b_content = r#"
+            module moduleb {
+                namespace "urn:module-b";
+                prefix b;
+                
+                import shared {
+                    prefix shared;
+                }
+            }
+        "#;
+        let module_b_path = temp_dir.path().join("moduleb.yang");
+        fs::write(&module_b_path, module_b_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import modulea {
+                    prefix a;
+                }
+                
+                import moduleb {
+                    prefix b;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok(), "Failed to parse module with shared imports: {:?}", result.err());
+
+        // Verify all modules were loaded
+        assert!(parser.get_loaded_module("main").is_some());
+        assert!(parser.get_loaded_module("modulea").is_some());
+        assert!(parser.get_loaded_module("moduleb").is_some());
+        assert!(parser.get_loaded_module("shared").is_some());
+
+        // The shared module should only be loaded once
+        let all_modules = parser.get_all_loaded_modules();
+        assert_eq!(all_modules.len(), 4); // main, modulea, moduleb, shared
+    }
+
+    #[test]
+    fn test_multiple_search_paths() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+
+        // Create module in first search path
+        let module_a_content = r#"
+            module modulea {
+                namespace "urn:module-a";
+                prefix a;
+            }
+        "#;
+        let module_a_path = temp_dir1.path().join("modulea.yang");
+        fs::write(&module_a_path, module_a_content).unwrap();
+
+        // Create module in second search path
+        let module_b_content = r#"
+            module moduleb {
+                namespace "urn:module-b";
+                prefix b;
+            }
+        "#;
+        let module_b_path = temp_dir2.path().join("moduleb.yang");
+        fs::write(&module_b_path, module_b_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import modulea {
+                    prefix a;
+                }
+                
+                import moduleb {
+                    prefix b;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir1.path().to_path_buf());
+        parser.add_search_path(temp_dir2.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok(), "Failed to parse module with multiple search paths: {:?}", result.err());
+
+        // Verify both modules were found and loaded
+        assert!(parser.get_loaded_module("modulea").is_some());
+        assert!(parser.get_loaded_module("moduleb").is_some());
+    }
+
+    #[test]
+    fn test_parse_file_with_imports() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create imported module
+        let imported_content = r#"
+            module imported {
+                namespace "urn:imported";
+                prefix imp;
+            }
+        "#;
+        let imported_path = temp_dir.path().join("imported.yang");
+        fs::write(&imported_path, imported_content).unwrap();
+
+        // Create main module file
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import imported {
+                    prefix imp;
+                }
+            }
+        "#;
+        let main_path = temp_dir.path().join("main.yang");
+        fs::write(&main_path, main_content).unwrap();
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_file(&main_path);
+        assert!(result.is_ok(), "Failed to parse file with imports: {:?}", result.err());
+
+        // Verify both modules were loaded
+        assert!(parser.get_loaded_module("main").is_some());
+        assert!(parser.get_loaded_module("imported").is_some());
+    }
+
+    #[test]
+    fn test_get_all_loaded_modules() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        let module_a_content = r#"
+            module modulea {
+                namespace "urn:module-a";
+                prefix a;
+            }
+        "#;
+        let module_a_path = temp_dir.path().join("modulea.yang");
+        fs::write(&module_a_path, module_a_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import modulea {
+                    prefix a;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        parser.parse_string(main_content, "main.yang").unwrap();
+
+        let all_modules = parser.get_all_loaded_modules();
+        assert_eq!(all_modules.len(), 2);
+        assert!(all_modules.contains_key("main"));
+        assert!(all_modules.contains_key("modulea"));
     }
 }

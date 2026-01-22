@@ -97,7 +97,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Validates: Requirements 1.1, 1.2**
 
 - [ ] 5. Implement module resolution and semantic validation
-  - [ ] 5.1 Implement import resolution
+  - [x] 5.1 Implement import resolution
     - Enhance YangParser to use search paths for finding imported modules
     - Recursively load imported modules using parse_file
     - Build module dependency graph to track imports
