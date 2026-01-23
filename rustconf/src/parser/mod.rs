@@ -128,6 +128,138 @@ impl YangParser {
     pub fn get_all_loaded_modules(&self) -> &HashMap<String, YangModule> {
         &self.loaded_modules
     }
+
+    /// Expand typedef references and grouping uses in a module.
+    /// This resolves all TypedefRef types to their concrete types and
+    /// expands all Uses nodes to their grouping definitions.
+    pub fn expand_module(&self, module: &mut YangModule) -> Result<(), ParseError> {
+        // First, expand typedefs in the module's own typedefs (for nested typedefs)
+        // We need to collect typedef information first to avoid borrow issues
+        let typedefs = module.typedefs.clone();
+
+        for typedef in &mut module.typedefs {
+            Self::expand_typedef_in_typespec_with_defs(&mut typedef.type_spec, &typedefs)?;
+        }
+
+        // Expand data nodes
+        let typedefs = module.typedefs.clone();
+        let groupings = module.groupings.clone();
+
+        for data_node in &mut module.data_nodes {
+            Self::expand_data_node_with_defs(data_node, &typedefs, &groupings)?;
+        }
+
+        Ok(())
+    }
+
+    /// Expand typedef references in a TypeSpec using a list of typedef definitions.
+    fn expand_typedef_in_typespec_with_defs(
+        type_spec: &mut TypeSpec,
+        typedefs: &[TypeDef],
+    ) -> Result<(), ParseError> {
+        match type_spec {
+            TypeSpec::TypedefRef { name } => {
+                // Find the typedef definition
+                let typedef = typedefs.iter().find(|t| t.name == *name).ok_or_else(|| {
+                    ParseError::SemanticError {
+                        message: format!("Undefined typedef: {}", name),
+                    }
+                })?;
+
+                // Replace with the typedef's type_spec
+                *type_spec = typedef.type_spec.clone();
+
+                // Recursively expand in case the typedef itself references another typedef
+                Self::expand_typedef_in_typespec_with_defs(type_spec, typedefs)?;
+            }
+            TypeSpec::Union { types } => {
+                // Expand each type in the union
+                for t in types {
+                    Self::expand_typedef_in_typespec_with_defs(t, typedefs)?;
+                }
+            }
+            _ => {
+                // Other types don't need expansion
+            }
+        }
+        Ok(())
+    }
+
+    /// Expand typedef references and grouping uses in a data node.
+    fn expand_data_node_with_defs(
+        data_node: &mut DataNode,
+        typedefs: &[TypeDef],
+        groupings: &[Grouping],
+    ) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Container(container) => {
+                Self::expand_children_with_defs(&mut container.children, typedefs, groupings)?;
+            }
+            DataNode::List(list) => {
+                Self::expand_children_with_defs(&mut list.children, typedefs, groupings)?;
+            }
+            DataNode::Leaf(leaf) => {
+                Self::expand_typedef_in_typespec_with_defs(&mut leaf.type_spec, typedefs)?;
+            }
+            DataNode::LeafList(leaf_list) => {
+                Self::expand_typedef_in_typespec_with_defs(&mut leaf_list.type_spec, typedefs)?;
+            }
+            DataNode::Choice(choice) => {
+                for case in &mut choice.cases {
+                    Self::expand_children_with_defs(&mut case.data_nodes, typedefs, groupings)?;
+                }
+            }
+            DataNode::Case(case) => {
+                Self::expand_children_with_defs(&mut case.data_nodes, typedefs, groupings)?;
+            }
+            DataNode::Uses(_) => {
+                // Uses nodes will be expanded by expand_children_with_defs
+            }
+        }
+        Ok(())
+    }
+
+    /// Expand children nodes, replacing Uses nodes with their grouping definitions.
+    fn expand_children_with_defs(
+        children: &mut Vec<DataNode>,
+        typedefs: &[TypeDef],
+        groupings: &[Grouping],
+    ) -> Result<(), ParseError> {
+        let mut expanded = Vec::new();
+
+        for child in children.iter() {
+            match child {
+                DataNode::Uses(uses) => {
+                    // Find the grouping definition
+                    let grouping =
+                        groupings
+                            .iter()
+                            .find(|g| g.name == uses.name)
+                            .ok_or_else(|| ParseError::SemanticError {
+                                message: format!("Undefined grouping: {}", uses.name),
+                            })?;
+
+                    // Clone the grouping's data nodes and expand them recursively
+                    let mut cloned_nodes = grouping.data_nodes.clone();
+
+                    // Recursively expand the cloned nodes (this handles nested uses)
+                    Self::expand_children_with_defs(&mut cloned_nodes, typedefs, groupings)?;
+
+                    // Add the expanded nodes to the result
+                    expanded.extend(cloned_nodes);
+                }
+                _ => {
+                    // Clone the child and recursively expand it
+                    let mut cloned_child = child.clone();
+                    Self::expand_data_node_with_defs(&mut cloned_child, typedefs, groupings)?;
+                    expanded.push(cloned_child);
+                }
+            }
+        }
+
+        *children = expanded;
+        Ok(())
+    }
 }
 
 impl Default for YangParser {
@@ -241,6 +373,9 @@ impl ModuleParser {
                 }
                 Token::Choice => {
                     data_nodes.push(DataNode::Choice(self.parse_choice()?));
+                }
+                Token::Uses => {
+                    data_nodes.push(DataNode::Uses(self.parse_uses()?));
                 }
                 _ => {
                     // Skip unknown statements for now
@@ -525,12 +660,12 @@ impl ModuleParser {
             }
             Token::Identifier(_) => {
                 // Could be a typedef reference or other type
-                // For now, treat as string type
-                self.advance();
-                TypeSpec::String {
-                    length: None,
-                    pattern: None,
-                }
+                // Store as TypedefRef for later resolution
+                let name = match self.advance() {
+                    Token::Identifier(id) => id,
+                    _ => unreachable!(),
+                };
+                TypeSpec::TypedefRef { name }
             }
             _ => return Err(self.error(format!("Expected type name, found {:?}", base_type))),
         };
@@ -831,6 +966,9 @@ impl ModuleParser {
                 Token::LeafList => {
                     data_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
                 }
+                Token::Uses => {
+                    data_nodes.push(DataNode::Uses(self.parse_uses()?));
+                }
                 _ => {
                     self.skip_statement()?;
                 }
@@ -913,6 +1051,9 @@ impl ModuleParser {
                 }
                 Token::Choice => {
                     children.push(DataNode::Choice(self.parse_choice()?));
+                }
+                Token::Uses => {
+                    children.push(DataNode::Uses(self.parse_uses()?));
                 }
                 _ => {
                     self.skip_statement()?;
@@ -998,6 +1139,9 @@ impl ModuleParser {
                 }
                 Token::Choice => {
                     children.push(DataNode::Choice(self.parse_choice()?));
+                }
+                Token::Uses => {
+                    children.push(DataNode::Uses(self.parse_uses()?));
                 }
                 _ => {
                     self.skip_statement()?;
@@ -1294,6 +1438,9 @@ impl ModuleParser {
                 Token::Choice => {
                     data_nodes.push(DataNode::Choice(self.parse_choice()?));
                 }
+                Token::Uses => {
+                    data_nodes.push(DataNode::Uses(self.parse_uses()?));
+                }
                 _ => {
                     self.skip_statement()?;
                 }
@@ -1307,6 +1454,50 @@ impl ModuleParser {
             description,
             data_nodes,
         })
+    }
+
+    /// Parse uses statement: uses <identifier> [{ <statements> }]
+    fn parse_uses(&mut self) -> Result<Uses, ParseError> {
+        self.expect(Token::Uses)?;
+
+        let name = match self.advance() {
+            Token::Identifier(id) => id,
+            token => return Err(self.error(format!("Expected grouping name, found {:?}", token))),
+        };
+
+        let mut description = None;
+
+        // Check for optional body
+        if self.peek() == &Token::LeftBrace {
+            self.advance();
+
+            while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+                match self.peek() {
+                    Token::Description => {
+                        self.advance();
+                        description = Some(match self.advance() {
+                            Token::StringLiteral(s) => s,
+                            token => {
+                                return Err(self.error(format!(
+                                    "Expected description string, found {:?}",
+                                    token
+                                )))
+                            }
+                        });
+                        self.expect(Token::Semicolon)?;
+                    }
+                    _ => {
+                        self.skip_statement()?;
+                    }
+                }
+            }
+
+            self.expect(Token::RightBrace)?;
+        } else {
+            self.expect(Token::Semicolon)?;
+        }
+
+        Ok(Uses { name, description })
     }
 
     /// Skip an unknown statement (consume until semicolon or closing brace).
@@ -1372,3 +1563,7 @@ impl ModuleParser {
 #[cfg(test)]
 #[path = "mod.test.rs"]
 mod mod_tests;
+
+#[cfg(test)]
+#[path = "expansion.test.rs"]
+mod expansion_tests;

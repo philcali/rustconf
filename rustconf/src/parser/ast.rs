@@ -68,6 +68,14 @@ pub enum DataNode {
     LeafList(LeafList),
     Choice(Choice),
     Case(Case),
+    Uses(Uses),
+}
+
+/// Uses statement for grouping expansion.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Uses {
+    pub name: String,
+    pub description: Option<String>,
 }
 
 /// Container node.
@@ -188,6 +196,10 @@ pub enum TypeSpec {
     Empty,
     Binary {
         length: Option<LengthConstraint>,
+    },
+    /// Reference to a typedef that needs to be resolved
+    TypedefRef {
+        name: String,
     },
 }
 

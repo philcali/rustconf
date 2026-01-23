@@ -2402,4 +2402,148 @@ mod tests {
         assert!(all_modules.contains_key("main"));
         assert!(all_modules.contains_key("modulea"));
     }
+
+    #[test]
+    fn test_import_with_revision_date() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create imported module
+        let imported_content = r#"
+            module versioned {
+                namespace "urn:versioned";
+                prefix ver;
+            }
+        "#;
+        let imported_path = temp_dir.path().join("versioned.yang");
+        fs::write(&imported_path, imported_content).unwrap();
+
+        // Create main module with revision-date in import
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import versioned {
+                    prefix ver;
+                    revision-date "2024-01-15";
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(
+            result.is_ok(),
+            "Failed to parse module with revision-date in import: {:?}",
+            result.err()
+        );
+
+        let module = result.unwrap();
+        assert_eq!(module.imports.len(), 1);
+
+        // Note: Current implementation skips revision-date parsing
+        // This test verifies that the parser doesn't fail when revision-date is present
+        // Future enhancement: store and validate revision dates
+        assert_eq!(module.imports[0].module, "versioned");
+        assert_eq!(module.imports[0].prefix, "ver");
+    }
+
+    #[test]
+    fn test_import_resolution_with_yang_extension() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create imported module with .yang extension
+        let imported_content = r#"
+            module types {
+                namespace "urn:types";
+                prefix types;
+            }
+        "#;
+        let imported_path = temp_dir.path().join("types.yang");
+        fs::write(&imported_path, imported_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import types {
+                    prefix types;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        parser.add_search_path(temp_dir.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(
+            result.is_ok(),
+            "Failed to resolve import with .yang extension: {:?}",
+            result.err()
+        );
+
+        // Verify the imported module was loaded
+        assert!(parser.get_loaded_module("types").is_some());
+    }
+
+    #[test]
+    fn test_import_resolution_order() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+
+        // Create different versions of the same module in two search paths
+        let module_v1_content = r#"
+            module common {
+                namespace "urn:common:v1";
+                prefix common;
+            }
+        "#;
+        let module_v1_path = temp_dir1.path().join("common.yang");
+        fs::write(&module_v1_path, module_v1_content).unwrap();
+
+        let module_v2_content = r#"
+            module common {
+                namespace "urn:common:v2";
+                prefix common;
+            }
+        "#;
+        let module_v2_path = temp_dir2.path().join("common.yang");
+        fs::write(&module_v2_path, module_v2_content).unwrap();
+
+        let main_content = r#"
+            module main {
+                namespace "urn:main";
+                prefix main;
+                
+                import common {
+                    prefix common;
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        // Add search paths in order - first path should take precedence
+        parser.add_search_path(temp_dir1.path().to_path_buf());
+        parser.add_search_path(temp_dir2.path().to_path_buf());
+
+        let result = parser.parse_string(main_content, "main.yang");
+        assert!(result.is_ok());
+
+        // Verify the first version was loaded (from first search path)
+        let loaded = parser.get_loaded_module("common");
+        assert!(loaded.is_some());
+        assert_eq!(loaded.unwrap().namespace, "urn:common:v1");
+    }
 }
