@@ -129,6 +129,471 @@ impl YangParser {
         &self.loaded_modules
     }
 
+    /// Perform semantic validation on a module.
+    /// This validates:
+    /// - All typedef references are defined
+    /// - All grouping references are defined
+    /// - All leafref paths are valid
+    /// - No circular dependencies in imports
+    /// - No circular dependencies in groupings
+    /// - Type constraints are well-formed (range min < max, etc.)
+    pub fn validate_module(&self, module: &YangModule) -> Result<(), ParseError> {
+        // Validate circular import dependencies
+        self.validate_no_circular_imports(module, &mut Vec::new())?;
+
+        // Validate circular grouping dependencies
+        self.validate_no_circular_groupings(module)?;
+
+        // Validate all references are defined
+        self.validate_typedef_references(module)?;
+        self.validate_grouping_references(module)?;
+        self.validate_leafref_paths(module)?;
+
+        // Validate type constraints are well-formed
+        self.validate_type_constraints(module)?;
+
+        Ok(())
+    }
+
+    /// Validate that there are no circular import dependencies.
+    fn validate_no_circular_imports(
+        &self,
+        module: &YangModule,
+        visited: &mut Vec<String>,
+    ) -> Result<(), ParseError> {
+        // Check if we've already visited this module (circular dependency)
+        if visited.contains(&module.name) {
+            return Err(ParseError::SemanticError {
+                message: format!(
+                    "Circular import dependency detected: {} -> {}",
+                    visited.join(" -> "),
+                    module.name
+                ),
+            });
+        }
+
+        // Add current module to visited path
+        visited.push(module.name.clone());
+
+        // Check all imports recursively
+        for import in &module.imports {
+            if let Some(imported_module) = self.loaded_modules.get(&import.module) {
+                self.validate_no_circular_imports(imported_module, visited)?;
+            }
+        }
+
+        // Remove current module from visited path (backtrack)
+        visited.pop();
+
+        Ok(())
+    }
+
+    /// Validate that there are no circular grouping dependencies.
+    fn validate_no_circular_groupings(&self, module: &YangModule) -> Result<(), ParseError> {
+        for grouping in &module.groupings {
+            let mut visited = Vec::new();
+            self.validate_grouping_no_cycles(
+                &grouping.name,
+                &grouping.data_nodes,
+                &module.groupings,
+                &mut visited,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Recursively validate that a grouping doesn't have circular dependencies.
+    fn validate_grouping_no_cycles(
+        &self,
+        grouping_name: &str,
+        data_nodes: &[DataNode],
+        all_groupings: &[Grouping],
+        visited: &mut Vec<String>,
+    ) -> Result<(), ParseError> {
+        // Check if we've already visited this grouping (circular dependency)
+        if visited.contains(&grouping_name.to_string()) {
+            return Err(ParseError::SemanticError {
+                message: format!(
+                    "Circular grouping dependency detected: {} -> {}",
+                    visited.join(" -> "),
+                    grouping_name
+                ),
+            });
+        }
+
+        // Add current grouping to visited path
+        visited.push(grouping_name.to_string());
+
+        // Check all uses statements in the data nodes
+        for data_node in data_nodes {
+            self.check_data_node_for_circular_uses(data_node, all_groupings, visited)?;
+        }
+
+        // Remove current grouping from visited path (backtrack)
+        visited.pop();
+
+        Ok(())
+    }
+
+    /// Check a data node for uses statements that might create circular dependencies.
+    fn check_data_node_for_circular_uses(
+        &self,
+        data_node: &DataNode,
+        all_groupings: &[Grouping],
+        visited: &mut Vec<String>,
+    ) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Uses(uses) => {
+                // Find the referenced grouping
+                if let Some(grouping) = all_groupings.iter().find(|g| g.name == uses.name) {
+                    self.validate_grouping_no_cycles(
+                        &grouping.name,
+                        &grouping.data_nodes,
+                        all_groupings,
+                        visited,
+                    )?;
+                }
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    self.check_data_node_for_circular_uses(child, all_groupings, visited)?;
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    self.check_data_node_for_circular_uses(child, all_groupings, visited)?;
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        self.check_data_node_for_circular_uses(child, all_groupings, visited)?;
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    self.check_data_node_for_circular_uses(child, all_groupings, visited)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate that all typedef references are defined.
+    fn validate_typedef_references(&self, module: &YangModule) -> Result<(), ParseError> {
+        // Check typedefs in the module's own typedefs
+        for typedef in &module.typedefs {
+            Self::validate_typespec_references(&typedef.type_spec, &module.typedefs)?;
+        }
+
+        // Check typedefs in data nodes
+        for data_node in &module.data_nodes {
+            Self::validate_data_node_typedef_references(data_node, &module.typedefs)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate typedef references in a TypeSpec.
+    fn validate_typespec_references(
+        type_spec: &TypeSpec,
+        typedefs: &[TypeDef],
+    ) -> Result<(), ParseError> {
+        match type_spec {
+            TypeSpec::TypedefRef { name } => {
+                // Check if the typedef is defined
+                if !typedefs.iter().any(|t| t.name == *name) {
+                    return Err(ParseError::SemanticError {
+                        message: format!("Undefined typedef reference: {}", name),
+                    });
+                }
+            }
+            TypeSpec::Union { types } => {
+                // Validate each type in the union
+                for t in types {
+                    Self::validate_typespec_references(t, typedefs)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate typedef references in a data node.
+    fn validate_data_node_typedef_references(
+        data_node: &DataNode,
+        typedefs: &[TypeDef],
+    ) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Leaf(leaf) => {
+                Self::validate_typespec_references(&leaf.type_spec, typedefs)?;
+            }
+            DataNode::LeafList(leaf_list) => {
+                Self::validate_typespec_references(&leaf_list.type_spec, typedefs)?;
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    Self::validate_data_node_typedef_references(child, typedefs)?;
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    Self::validate_data_node_typedef_references(child, typedefs)?;
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        Self::validate_data_node_typedef_references(child, typedefs)?;
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    Self::validate_data_node_typedef_references(child, typedefs)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate that all grouping references are defined.
+    fn validate_grouping_references(&self, module: &YangModule) -> Result<(), ParseError> {
+        for data_node in &module.data_nodes {
+            Self::validate_data_node_grouping_references(data_node, &module.groupings)?;
+        }
+
+        // Also check groupings themselves for nested uses
+        for grouping in &module.groupings {
+            for data_node in &grouping.data_nodes {
+                Self::validate_data_node_grouping_references(data_node, &module.groupings)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate grouping references in a data node.
+    fn validate_data_node_grouping_references(
+        data_node: &DataNode,
+        groupings: &[Grouping],
+    ) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Uses(uses) => {
+                // Check if the grouping is defined
+                if !groupings.iter().any(|g| g.name == uses.name) {
+                    return Err(ParseError::SemanticError {
+                        message: format!("Undefined grouping reference: {}", uses.name),
+                    });
+                }
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    Self::validate_data_node_grouping_references(child, groupings)?;
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    Self::validate_data_node_grouping_references(child, groupings)?;
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        Self::validate_data_node_grouping_references(child, groupings)?;
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    Self::validate_data_node_grouping_references(child, groupings)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate that all leafref paths are valid.
+    /// Note: This is a simplified validation that just checks the path is not empty.
+    /// Full path validation would require resolving the path against the data tree.
+    fn validate_leafref_paths(&self, module: &YangModule) -> Result<(), ParseError> {
+        for data_node in &module.data_nodes {
+            Self::validate_data_node_leafref_paths(data_node)?;
+        }
+        Ok(())
+    }
+
+    /// Validate leafref paths in a data node.
+    fn validate_data_node_leafref_paths(data_node: &DataNode) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Leaf(leaf) => {
+                Self::validate_typespec_leafref_paths(&leaf.type_spec)?;
+            }
+            DataNode::LeafList(leaf_list) => {
+                Self::validate_typespec_leafref_paths(&leaf_list.type_spec)?;
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    Self::validate_data_node_leafref_paths(child)?;
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    Self::validate_data_node_leafref_paths(child)?;
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        Self::validate_data_node_leafref_paths(child)?;
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    Self::validate_data_node_leafref_paths(child)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate leafref paths in a TypeSpec.
+    fn validate_typespec_leafref_paths(type_spec: &TypeSpec) -> Result<(), ParseError> {
+        match type_spec {
+            TypeSpec::LeafRef { path } => {
+                if path.is_empty() {
+                    return Err(ParseError::SemanticError {
+                        message: "Leafref path cannot be empty".to_string(),
+                    });
+                }
+            }
+            TypeSpec::Union { types } => {
+                for t in types {
+                    Self::validate_typespec_leafref_paths(t)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate that type constraints are well-formed.
+    fn validate_type_constraints(&self, module: &YangModule) -> Result<(), ParseError> {
+        // Validate constraints in typedefs
+        for typedef in &module.typedefs {
+            self.validate_typespec_constraints(&typedef.type_spec)?;
+        }
+
+        // Validate constraints in data nodes
+        for data_node in &module.data_nodes {
+            self.validate_data_node_constraints(data_node)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate constraints in a TypeSpec.
+    fn validate_typespec_constraints(&self, type_spec: &TypeSpec) -> Result<(), ParseError> {
+        match type_spec {
+            TypeSpec::Int8 { range }
+            | TypeSpec::Int16 { range }
+            | TypeSpec::Int32 { range }
+            | TypeSpec::Int64 { range }
+            | TypeSpec::Uint8 { range }
+            | TypeSpec::Uint16 { range }
+            | TypeSpec::Uint32 { range }
+            | TypeSpec::Uint64 { range } => {
+                if let Some(range_constraint) = range {
+                    self.validate_range_constraint(range_constraint)?;
+                }
+            }
+            TypeSpec::String { length, .. } | TypeSpec::Binary { length } => {
+                if let Some(length_constraint) = length {
+                    self.validate_length_constraint(length_constraint)?;
+                }
+            }
+            TypeSpec::Union { types } => {
+                for t in types {
+                    self.validate_typespec_constraints(t)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Validate that a range constraint is well-formed (min <= max).
+    fn validate_range_constraint(&self, constraint: &RangeConstraint) -> Result<(), ParseError> {
+        for range in &constraint.ranges {
+            if range.min > range.max {
+                return Err(ParseError::SemanticError {
+                    message: format!(
+                        "Invalid range constraint: min ({}) is greater than max ({})",
+                        range.min, range.max
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate that a length constraint is well-formed (min <= max).
+    fn validate_length_constraint(&self, constraint: &LengthConstraint) -> Result<(), ParseError> {
+        for length_range in &constraint.lengths {
+            if length_range.min > length_range.max {
+                return Err(ParseError::SemanticError {
+                    message: format!(
+                        "Invalid length constraint: min ({}) is greater than max ({})",
+                        length_range.min, length_range.max
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate constraints in a data node.
+    fn validate_data_node_constraints(&self, data_node: &DataNode) -> Result<(), ParseError> {
+        match data_node {
+            DataNode::Leaf(leaf) => {
+                self.validate_typespec_constraints(&leaf.type_spec)?;
+            }
+            DataNode::LeafList(leaf_list) => {
+                self.validate_typespec_constraints(&leaf_list.type_spec)?;
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    self.validate_data_node_constraints(child)?;
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    self.validate_data_node_constraints(child)?;
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        self.validate_data_node_constraints(child)?;
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    self.validate_data_node_constraints(child)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Expand typedef references and grouping uses in a module.
     /// This resolves all TypedefRef types to their concrete types and
     /// expands all Uses nodes to their grouping definitions.
@@ -1567,3 +2032,7 @@ mod mod_tests;
 #[cfg(test)]
 #[path = "expansion.test.rs"]
 mod expansion_tests;
+
+#[cfg(test)]
+#[path = "validation.test.rs"]
+mod validation_tests;
