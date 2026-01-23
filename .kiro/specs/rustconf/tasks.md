@@ -149,14 +149,14 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Add file header comments with generation metadata
     - _Requirements: 9.1, 9.2_
   
-  - [ ] 7.2 Implement naming convention conversion
+  - [x] 7.2 Implement naming convention conversion
     - Convert YANG identifiers to snake_case for fields/functions
     - Convert YANG identifiers to PascalCase for types
     - Handle Rust keyword escaping (type → type_, match → match_, etc.)
     - Create utility functions: to_snake_case, to_pascal_case, escape_keyword
     - _Requirements: 8.1_
   
-  - [ ] 7.3 Write unit tests for naming conventions
+  - [x] 7.3 Write unit tests for naming conventions
     - Test kebab-case to snake_case conversion
     - Test kebab-case to PascalCase conversion
     - Test Rust keyword escaping
