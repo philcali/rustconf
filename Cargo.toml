@@ -33,3 +33,6 @@ tempfile = "3.8"
 
 # Error handling
 thiserror = "1.0"
+
+# Date/time utilities
+chrono = "0.4"

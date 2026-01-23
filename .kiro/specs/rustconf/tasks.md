@@ -141,8 +141,8 @@ This implementation plan breaks down the rustconf library into incremental codin
 - [x] 6. Checkpoint - Ensure parser tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Implement code generator infrastructure
-  - [ ] 7.1 Implement basic code generation scaffolding
+- [x] 7. Implement code generator infrastructure
+  - [x] 7.1 Implement basic code generation scaffolding
     - Implement CodeGenerator::generate to create GeneratedCode structure
     - Create file writing logic to output_dir
     - Generate basic module structure with use statements
