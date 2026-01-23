@@ -11,10 +11,10 @@ use syn::{Ident, Type};
 pub fn format_token_stream(tokens: TokenStream) -> Result<String, syn::Error> {
     // Parse the token stream into a syn::File
     let syntax_tree: syn::File = syn::parse2(tokens)?;
-    
+
     // Format using prettyplease
     let formatted = prettyplease::unparse(&syntax_tree);
-    
+
     Ok(formatted)
 }
 
@@ -35,13 +35,13 @@ pub fn generate_struct(
     doc_comment: Option<&str>,
 ) -> Result<String, syn::Error> {
     let struct_name = Ident::new(name, proc_macro2::Span::call_site());
-    
+
     // Build derive attributes
     let derive_idents: Vec<Ident> = derives
         .iter()
         .map(|d| Ident::new(d, proc_macro2::Span::call_site()))
         .collect();
-    
+
     // Build fields
     let field_defs: Vec<_> = fields
         .iter()
@@ -52,7 +52,7 @@ pub fn generate_struct(
             }
         })
         .collect();
-    
+
     // Build the struct with optional doc comment
     let tokens = if let Some(doc) = doc_comment {
         quote! {
@@ -70,7 +70,7 @@ pub fn generate_struct(
             }
         }
     };
-    
+
     format_token_stream(tokens)
 }
 
@@ -87,13 +87,13 @@ pub fn generate_impl_block(
     methods: Vec<TokenStream>,
 ) -> Result<String, syn::Error> {
     let type_ident = Ident::new(type_name, proc_macro2::Span::call_site());
-    
+
     let tokens = quote! {
         impl #type_ident {
             #(#methods)*
         }
     };
-    
+
     format_token_stream(tokens)
 }
 
@@ -113,13 +113,13 @@ pub fn generate_trait_impl(
 ) -> Result<String, syn::Error> {
     let trait_ident = Ident::new(trait_name, proc_macro2::Span::call_site());
     let type_ident = Ident::new(type_name, proc_macro2::Span::call_site());
-    
+
     let tokens = quote! {
         impl #trait_ident for #type_ident {
             #(#methods)*
         }
     };
-    
+
     format_token_stream(tokens)
 }
 
@@ -140,13 +140,13 @@ pub fn generate_enum(
     doc_comment: Option<&str>,
 ) -> Result<String, syn::Error> {
     let enum_name = Ident::new(name, proc_macro2::Span::call_site());
-    
+
     // Build derive attributes
     let derive_idents: Vec<Ident> = derives
         .iter()
         .map(|d| Ident::new(d, proc_macro2::Span::call_site()))
         .collect();
-    
+
     // Build variants
     let variant_defs: Vec<_> = variants
         .iter()
@@ -159,7 +159,7 @@ pub fn generate_enum(
             }
         })
         .collect();
-    
+
     // Build the enum with optional doc comment
     let tokens = if let Some(doc) = doc_comment {
         quote! {
@@ -177,7 +177,7 @@ pub fn generate_enum(
             }
         }
     };
-    
+
     format_token_stream(tokens)
 }
 
@@ -196,7 +196,7 @@ pub fn generate_type_alias(
     doc_comment: Option<&str>,
 ) -> Result<String, syn::Error> {
     let alias_ident = Ident::new(alias_name, proc_macro2::Span::call_site());
-    
+
     let tokens = if let Some(doc) = doc_comment {
         quote! {
             #[doc = #doc]
@@ -207,7 +207,7 @@ pub fn generate_type_alias(
             pub type #alias_ident = #target_type;
         }
     };
-    
+
     format_token_stream(tokens)
 }
 
@@ -221,10 +221,10 @@ mod tests {
         let tokens = quote! {
             pub struct Foo { pub bar: i32, pub baz: String }
         };
-        
+
         let result = format_token_stream(tokens);
         assert!(result.is_ok());
-        
+
         let formatted = result.unwrap();
         assert!(formatted.contains("pub struct Foo"));
         assert!(formatted.contains("pub bar: i32"));
@@ -237,17 +237,12 @@ mod tests {
             ("name".to_string(), parse_quote!(String)),
             ("age".to_string(), parse_quote!(u32)),
         ];
-        
-        let result = generate_struct(
-            "Person",
-            fields,
-            vec!["Debug", "Clone"],
-            None,
-        );
-        
+
+        let result = generate_struct("Person", fields, vec!["Debug", "Clone"], None);
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("pub struct Person"));
         assert!(code.contains("pub name: String"));
         assert!(code.contains("pub age: u32"));
@@ -256,20 +251,18 @@ mod tests {
 
     #[test]
     fn test_generate_struct_with_doc() {
-        let fields = vec![
-            ("value".to_string(), parse_quote!(i32)),
-        ];
-        
+        let fields = vec![("value".to_string(), parse_quote!(i32))];
+
         let result = generate_struct(
             "Counter",
             fields,
             vec!["Debug"],
             Some("A simple counter type"),
         );
-        
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("A simple counter type"));
         assert!(code.contains("pub struct Counter"));
     }
@@ -281,17 +274,12 @@ mod tests {
             ("Green".to_string(), None),
             ("Blue".to_string(), None),
         ];
-        
-        let result = generate_enum(
-            "Color",
-            variants,
-            vec!["Debug", "Clone"],
-            None,
-        );
-        
+
+        let result = generate_enum("Color", variants, vec!["Debug", "Clone"], None);
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("pub enum Color"));
         assert!(code.contains("Red"));
         assert!(code.contains("Green"));
@@ -304,17 +292,12 @@ mod tests {
             ("Some".to_string(), Some(parse_quote!(i32))),
             ("None".to_string(), None),
         ];
-        
-        let result = generate_enum(
-            "MaybeInt",
-            variants,
-            vec!["Debug"],
-            None,
-        );
-        
+
+        let result = generate_enum("MaybeInt", variants, vec!["Debug"], None);
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("pub enum MaybeInt"));
         assert!(code.contains("Some(i32)"));
         assert!(code.contains("None"));
@@ -334,12 +317,12 @@ mod tests {
                 }
             },
         ];
-        
+
         let result = generate_impl_block("Counter", methods);
-        
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("impl Counter"));
         assert!(code.contains("pub fn new"));
         assert!(code.contains("pub fn get"));
@@ -347,19 +330,17 @@ mod tests {
 
     #[test]
     fn test_generate_trait_impl() {
-        let methods = vec![
-            quote! {
-                fn default() -> Self {
-                    Self { value: 0 }
-                }
-            },
-        ];
-        
+        let methods = vec![quote! {
+            fn default() -> Self {
+                Self { value: 0 }
+            }
+        }];
+
         let result = generate_trait_impl("Default", "Counter", methods);
-        
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("impl Default for Counter"));
         assert!(code.contains("fn default"));
     }
@@ -371,10 +352,10 @@ mod tests {
             parse_quote!(Vec<i32>),
             Some("A list of integers"),
         );
-        
+
         assert!(result.is_ok());
         let code = result.unwrap();
-        
+
         assert!(code.contains("pub type IntList = Vec<i32>"));
         assert!(code.contains("A list of integers"));
     }
