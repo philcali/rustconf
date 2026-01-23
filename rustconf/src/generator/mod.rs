@@ -7,6 +7,7 @@ use crate::parser::YangModule;
 
 pub mod config;
 pub mod error;
+pub mod formatting;
 pub mod naming;
 
 pub use config::GeneratorConfig;
