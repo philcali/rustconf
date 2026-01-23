@@ -104,28 +104,28 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Store loaded modules to avoid duplicate parsing
     - _Requirements: 1.4, 7.4_
   
-  - [ ] 5.2 Write unit tests for import resolution
+  - [x] 5.2 Write unit tests for import resolution
     - Test resolving imports from search paths
     - Test handling missing imported modules (UnresolvedImport error)
     - Test recursive import loading
     - Test import with revision dates
     - _Requirements: 1.4, 7.4_
   
-  - [ ] 5.3 Implement typedef and grouping expansion
+  - [x] 5.3 Implement typedef and grouping expansion
     - Resolve typedef references to concrete types
     - Expand grouping uses into data nodes
     - Handle nested groupings and typedefs
     - Replace type references with expanded TypeSpec
     - _Requirements: 1.5_
   
-  - [ ] 5.4 Implement semantic validation
+  - [x] 5.4 Implement semantic validation
     - Validate all references are defined (typedefs, groupings, leafrefs)
     - Detect circular dependencies in imports and groupings
     - Validate type constraints are well-formed (range min < max, etc.)
     - Return SemanticError with descriptive messages
     - _Requirements: 7.2, 7.5_
   
-  - [ ] 5.5 Write unit tests for semantic validation
+  - [x] 5.5 Write unit tests for semantic validation
     - Test detection of undefined references
     - Test detection of circular dependencies
     - Test validation of malformed constraints
@@ -138,7 +138,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Property 23: Semantic Validation Errors**
     - **Validates: Requirements 1.4, 1.5, 7.2, 7.4, 7.5**
 
-- [ ] 6. Checkpoint - Ensure parser tests pass
+- [x] 6. Checkpoint - Ensure parser tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Implement code generator infrastructure
