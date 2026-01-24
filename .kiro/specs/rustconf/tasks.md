@@ -194,7 +194,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Ensure key fields are non-optional
     - _Requirements: 2.3_
   
-  - [ ] 8.4 Generate Rust enums from YANG choices
+  - [x] 8.4 Generate Rust enums from YANG choices
     - Create enum with variants for each case
     - Add #[serde(rename_all = "kebab-case")] for proper serialization
     - Handle nested data nodes within cases
