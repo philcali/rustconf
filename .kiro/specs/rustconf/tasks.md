@@ -181,14 +181,14 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Handle nested containers recursively
     - _Requirements: 2.2, 5.1, 6.5, 8.1_
   
-  - [ ] 8.2 Write unit tests for container generation
+  - [x] 8.2 Write unit tests for container generation
     - Test simple container with leaf children
     - Test nested containers
     - Test container with description generating rustdoc
     - Test empty containers
     - _Requirements: 2.2, 6.5_
   
-  - [ ] 8.3 Generate Rust types from YANG lists
+  - [x] 8.3 Generate Rust types from YANG lists
     - Create struct for list items with key fields
     - Generate Vec<T> type alias for list collections
     - Ensure key fields are non-optional
