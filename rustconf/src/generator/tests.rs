@@ -345,3 +345,389 @@ fn test_header_omits_yang_version_when_absent() {
     let generated = generator.generate(&module).unwrap();
     assert!(!generated.files[0].content.contains("YANG version:"));
 }
+
+#[test]
+fn test_generate_simple_container() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface-config".to_string(),
+            description: Some("Interface configuration data".to_string()),
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: Some("Interface name".to_string()),
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "enabled".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check struct definition
+    assert!(content.contains("pub struct InterfaceConfig {"));
+
+    // Check rustdoc comment
+    assert!(content.contains("/// Interface configuration data"));
+
+    // Check derive attributes
+    assert!(content.contains("#[derive(Debug, Clone, Serialize, Deserialize)]"));
+
+    // Check fields
+    assert!(content.contains("pub name: String,"));
+    assert!(content.contains("pub enabled: bool,"));
+
+    // Check serde rename attributes
+    assert!(content.contains("#[serde(rename = \"name\")]"));
+    assert!(content.contains("#[serde(rename = \"enabled\")]"));
+}
+
+#[test]
+fn test_generate_container_with_optional_fields() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "mtu".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint16 { range: None },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "description".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check optional field types
+    assert!(content.contains("pub mtu: Option<u16>,"));
+    assert!(content.contains("pub description: Option<String>,"));
+
+    // Check skip_serializing_if attributes (now combined with rename)
+    assert!(content.contains("skip_serializing_if = \"Option::is_none\""));
+}
+
+#[test]
+fn test_generate_nested_containers() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface".to_string(),
+            description: Some("Network interface".to_string()),
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Container(Container {
+                    name: "config".to_string(),
+                    description: Some("Configuration data".to_string()),
+                    config: true,
+                    mandatory: true,
+                    children: vec![DataNode::Leaf(Leaf {
+                        name: "enabled".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::Boolean,
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check parent struct
+    assert!(content.contains("pub struct Interface {"));
+    assert!(content.contains("/// Network interface"));
+
+    // Check nested container field
+    assert!(content.contains("pub config: Config,"));
+    assert!(content.contains("#[serde(rename = \"config\")]"));
+
+    // Check nested struct definition
+    assert!(content.contains("pub struct Config {"));
+    assert!(content.contains("/// Configuration data"));
+    assert!(content.contains("pub enabled: bool,"));
+}
+
+#[test]
+fn test_generate_container_with_optional_nested_container() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Container(Container {
+                name: "state".to_string(),
+                description: Some("Operational state data".to_string()),
+                config: false,
+                mandatory: false,
+                children: vec![DataNode::Leaf(Leaf {
+                    name: "oper-status".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: false,
+                })],
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check optional nested container
+    assert!(content.contains("pub state: Option<State>,"));
+
+    // Check nested struct
+    assert!(content.contains("pub struct State {"));
+    assert!(content.contains("/// Operational state data"));
+
+    // Check field name conversion (kebab-case to snake_case)
+    assert!(content.contains("pub oper_status: String,"));
+    assert!(content.contains("#[serde(rename = \"oper-status\")]"));
+}
+
+#[test]
+fn test_generate_empty_container() {
+    use crate::parser::{Container, DataNode};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "empty-container".to_string(),
+            description: Some("An empty container".to_string()),
+            config: true,
+            mandatory: false,
+            children: vec![],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check struct definition
+    assert!(content.contains("pub struct EmptyContainer {"));
+    assert!(content.contains("/// An empty container"));
+
+    // Check that struct is properly closed
+    assert!(content.contains("}\n"));
+}
+
+#[test]
+fn test_rustdoc_multiline_description() {
+    use crate::parser::{Container, DataNode};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: Some("This is a multi-line description.\n\nIt has multiple paragraphs.\nAnd multiple lines.".to_string()),
+            config: true,
+            mandatory: false,
+            children: vec![],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check multiline rustdoc
+    assert!(content.contains("/// This is a multi-line description."));
+    assert!(content.contains("///\n"));
+    assert!(content.contains("/// It has multiple paragraphs."));
+    assert!(content.contains("/// And multiple lines."));
+}
+
+#[test]
+fn test_derive_attributes_configuration() {
+    use crate::parser::{Container, DataNode};
+
+    // Test with all derives enabled
+    let config = GeneratorConfig {
+        derive_debug: true,
+        derive_clone: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "test".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    assert!(content.contains("#[derive(Debug, Clone, Serialize, Deserialize)]"));
+
+    // Test with Debug disabled
+    let config = GeneratorConfig {
+        derive_debug: false,
+        derive_clone: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    assert!(content.contains("#[derive(Clone, Serialize, Deserialize)]"));
+    assert!(!content.contains("Debug"));
+
+    // Test with Clone disabled
+    let config = GeneratorConfig {
+        derive_debug: true,
+        derive_clone: false,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    assert!(content.contains("#[derive(Debug, Serialize, Deserialize)]"));
+    assert!(!content.contains("Clone"));
+}
