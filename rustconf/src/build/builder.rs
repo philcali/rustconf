@@ -65,8 +65,71 @@ impl RustconfBuilder {
 
     /// Generate Rust bindings from configured YANG files.
     pub fn generate(self) -> Result<(), BuildError> {
-        // TODO: Implement in task 12
-        unimplemented!("Build generation will be implemented in task 12")
+        // Validate configuration
+        if self.yang_files.is_empty() {
+            return Err(BuildError::ConfigurationError {
+                message: "No YANG files specified. Use yang_file() to add at least one YANG file."
+                    .to_string(),
+            });
+        }
+
+        // Create YANG parser
+        let mut parser = crate::parser::YangParser::new();
+
+        // Add search paths
+        for search_path in &self.search_paths {
+            parser.add_search_path(search_path.clone());
+        }
+
+        // Parse all YANG files
+        let mut modules = Vec::new();
+        for yang_file in &self.yang_files {
+            let module = parser.parse_file(yang_file)?;
+            modules.push(module);
+        }
+
+        // Create code generator
+        let generator = crate::generator::CodeGenerator::new(self.config);
+
+        // Generate code for each module
+        for module in &modules {
+            let generated = generator.generate(module)?;
+
+            // Write generated files to output directory
+            for file in &generated.files {
+                // Ensure parent directory exists
+                if let Some(parent) = file.path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+
+                // Write the file
+                std::fs::write(&file.path, &file.content)?;
+            }
+        }
+
+        // Emit cargo:rerun-if-changed directives for all input files
+        for yang_file in &self.yang_files {
+            println!(
+                "cargo:rerun-if-changed={}",
+                yang_file.to_string_lossy()
+            );
+        }
+
+        // Also emit directives for all loaded modules (imports)
+        for (_, module) in parser.get_all_loaded_modules() {
+            // Try to find the file path for this module
+            for search_path in &self.search_paths {
+                let module_path = search_path.join(format!("{}.yang", module.name));
+                if module_path.exists() {
+                    println!(
+                        "cargo:rerun-if-changed={}",
+                        module_path.to_string_lossy()
+                    );
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -75,3 +138,6 @@ impl Default for RustconfBuilder {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests;
