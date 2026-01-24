@@ -731,3 +731,394 @@ fn test_derive_attributes_configuration() {
     assert!(content.contains("#[derive(Debug, Serialize, Deserialize)]"));
     assert!(!content.contains("Clone"));
 }
+
+#[test]
+fn test_generate_simple_list() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "interfaces".to_string(),
+            description: Some("List of network interfaces".to_string()),
+            config: true,
+            keys: vec!["name".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: Some("Interface name".to_string()),
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "enabled".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check struct definition for list item
+    assert!(content.contains("pub struct Interface {"));
+
+    // Check rustdoc comment
+    assert!(content.contains("/// List of network interfaces"));
+
+    // Check derive attributes
+    assert!(content.contains("#[derive(Debug, Clone, Serialize, Deserialize)]"));
+
+    // Check key field is non-optional
+    assert!(content.contains("pub name: String,"));
+    assert!(!content.contains("pub name: Option<String>"));
+
+    // Check other fields
+    assert!(content.contains("pub enabled: bool,"));
+
+    // Check Vec type alias
+    assert!(content.contains("pub type Interfaces = Vec<Interface>;"));
+    assert!(content.contains("/// Collection of Interface items."));
+}
+
+#[test]
+fn test_generate_list_with_multiple_keys() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "routes".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["destination".to_string(), "prefix-length".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "destination".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "prefix-length".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint8 { range: None },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "next-hop".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check struct definition
+    assert!(content.contains("pub struct Route {"));
+
+    // Check all key fields are non-optional
+    assert!(content.contains("pub destination: String,"));
+    assert!(content.contains("pub prefix_length: u8,"));
+    assert!(!content.contains("pub destination: Option<String>"));
+    assert!(!content.contains("pub prefix_length: Option<u8>"));
+
+    // Check non-key optional field
+    assert!(content.contains("pub next_hop: Option<String>,"));
+
+    // Check Vec type alias
+    assert!(content.contains("pub type Routes = Vec<Route>;"));
+}
+
+#[test]
+fn test_generate_list_with_optional_fields() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "users".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["username".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "username".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "email".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "age".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint8 { range: None },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check key field is non-optional
+    assert!(content.contains("pub username: String,"));
+
+    // Check optional fields
+    assert!(content.contains("pub email: Option<String>,"));
+    assert!(content.contains("pub age: Option<u8>,"));
+
+    // Check skip_serializing_if for optional fields
+    assert!(content.contains("skip_serializing_if = \"Option::is_none\""));
+}
+
+#[test]
+fn test_generate_list_as_container_field() {
+    use crate::parser::{Container, DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "system".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::List(List {
+                name: "users".to_string(),
+                description: Some("System users".to_string()),
+                config: true,
+                keys: vec!["name".to_string()],
+                children: vec![DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                })],
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check container struct
+    assert!(content.contains("pub struct System {"));
+
+    // Check list field in container
+    assert!(content.contains("pub users: Users,"));
+    assert!(content.contains("#[serde(rename = \"users\")]"));
+
+    // Check list item struct
+    assert!(content.contains("pub struct User {"));
+    assert!(content.contains("/// System users"));
+
+    // Check Vec type alias
+    assert!(content.contains("pub type Users = Vec<User>;"));
+}
+
+#[test]
+fn test_generate_nested_list() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "interfaces".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["name".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::List(List {
+                    name: "addresses".to_string(),
+                    description: Some("IP addresses".to_string()),
+                    config: true,
+                    keys: vec!["ip".to_string()],
+                    children: vec![DataNode::Leaf(Leaf {
+                        name: "ip".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check parent list
+    assert!(content.contains("pub struct Interface {"));
+    assert!(content.contains("pub type Interfaces = Vec<Interface>;"));
+
+    // Check nested list field
+    assert!(content.contains("pub addresses: Addresses,"));
+
+    // Check nested list struct
+    assert!(content.contains("pub struct Addresse {"));
+    assert!(content.contains("/// IP addresses"));
+    assert!(content.contains("pub type Addresses = Vec<Addresse>;"));
+}
+
+#[test]
+fn test_list_key_field_always_non_optional() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    // Create a list where the key field is marked as non-mandatory in YANG
+    // (which shouldn't happen, but we want to ensure keys are always non-optional)
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "items".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["id".to_string()],
+            children: vec![DataNode::Leaf(Leaf {
+                name: "id".to_string(),
+                description: None,
+                type_spec: TypeSpec::Uint32 { range: None },
+                mandatory: false, // Even if marked as non-mandatory
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Key field should still be non-optional
+    assert!(content.contains("pub id: u32,"));
+    assert!(!content.contains("pub id: Option<u32>"));
+}

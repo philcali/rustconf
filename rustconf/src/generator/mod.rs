@@ -80,7 +80,7 @@ impl CodeGenerator {
 
         match node {
             DataNode::Container(container) => self.generate_container(container),
-            DataNode::List(_) => Ok(String::new()), // Will be implemented in task 8.3
+            DataNode::List(list) => self.generate_list(list),
             DataNode::Leaf(_) => Ok(String::new()), // Leaves are handled as struct fields
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
             DataNode::Choice(_) => Ok(String::new()), // Will be implemented in task 8.4
@@ -115,15 +115,175 @@ impl CodeGenerator {
 
         output.push_str("}\n");
 
-        // Recursively generate types for nested containers
+        // Recursively generate types for nested containers and lists
         for child in &container.children {
-            if let crate::parser::DataNode::Container(nested) = child {
-                output.push('\n');
-                output.push_str(&self.generate_container(nested)?);
+            match child {
+                crate::parser::DataNode::Container(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_container(nested)?);
+                }
+                crate::parser::DataNode::List(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_list(nested)?);
+                }
+                _ => {}
             }
         }
 
         Ok(output)
+    }
+
+    /// Generate a Rust struct and Vec type alias from a YANG list.
+    fn generate_list(&self, list: &crate::parser::List) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        // Generate rustdoc comment from YANG description
+        if let Some(ref description) = list.description {
+            output.push_str(&self.generate_rustdoc(description));
+        }
+
+        // Generate derive attributes
+        output.push_str(&self.generate_derive_attributes());
+
+        // Generate struct definition for list items
+        let type_name = naming::to_type_name(&list.name);
+        // Remove trailing 's' for singular item type name if present
+        let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
+            &type_name[..type_name.len() - 1]
+        } else {
+            &type_name
+        };
+
+        output.push_str(&format!("pub struct {} {{\n", item_type_name));
+
+        // Generate fields from child nodes
+        // Key fields must be non-optional
+        for child in &list.children {
+            output.push_str(&self.generate_list_field(child, &list.keys)?);
+        }
+
+        output.push_str("}\n\n");
+
+        // Generate Vec type alias for the collection
+        output.push_str(&format!("/// Collection of {} items.\n", item_type_name));
+        output.push_str(&format!(
+            "pub type {} = Vec<{}>;\n",
+            type_name, item_type_name
+        ));
+
+        // Recursively generate types for nested containers and lists
+        for child in &list.children {
+            match child {
+                crate::parser::DataNode::Container(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_container(nested)?);
+                }
+                crate::parser::DataNode::List(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_list(nested)?);
+                }
+                _ => {}
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Generate a struct field from a data node within a list.
+    /// Key fields are always mandatory (non-optional).
+    fn generate_list_field(
+        &self,
+        node: &crate::parser::DataNode,
+        keys: &[String],
+    ) -> Result<String, GeneratorError> {
+        use crate::parser::DataNode;
+
+        match node {
+            DataNode::Leaf(leaf) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = leaf.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Check if this leaf is a key field
+                let is_key = keys.contains(&leaf.name);
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", leaf.name)];
+                // Key fields are always mandatory, so only add skip_serializing_if for non-key optional fields
+                if !is_key && !leaf.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&leaf.name);
+                // Key fields are always non-optional
+                let field_type = if is_key {
+                    self.generate_leaf_type(&leaf.type_spec, true)
+                } else {
+                    self.generate_leaf_type(&leaf.type_spec, leaf.mandatory)
+                };
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::Container(container) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = container.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", container.name)];
+                if !container.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&container.name);
+                let type_name = naming::to_type_name(&container.name);
+                let field_type = if container.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::List(nested_list) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = nested_list.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                field.push_str(&format!(
+                    "    #[serde(rename = \"{}\")]\n",
+                    nested_list.name
+                ));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&nested_list.name);
+                let type_name = naming::to_type_name(&nested_list.name);
+                // Lists are always collections (Vec)
+                field.push_str(&format!("    pub {}: {},\n", field_name, type_name));
+
+                Ok(field)
+            }
+            DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
+            DataNode::Choice(_) => Ok(String::new()),   // Will be implemented in task 8.4
+            DataNode::Case(_) => Ok(String::new()),     // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()),     // Uses should be expanded during parsing
+        }
     }
 
     /// Generate a struct field from a data node.
@@ -183,11 +343,29 @@ impl CodeGenerator {
 
                 Ok(field)
             }
-            DataNode::List(_) => Ok(String::new()), // Will be implemented in task 8.3
+            DataNode::List(list) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = list.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                field.push_str(&format!("    #[serde(rename = \"{}\")]\n", list.name));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&list.name);
+                let type_name = naming::to_type_name(&list.name);
+                // Lists are always collections (Vec)
+                field.push_str(&format!("    pub {}: {},\n", field_name, type_name));
+
+                Ok(field)
+            }
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(_) => Ok(String::new()), // Will be implemented in task 8.4
-            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
-            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
+            DataNode::Choice(_) => Ok(String::new()),   // Will be implemented in task 8.4
+            DataNode::Case(_) => Ok(String::new()),     // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()),     // Uses should be expanded during parsing
         }
     }
 
