@@ -103,9 +103,15 @@ impl CodeGenerator {
             content.push('\n');
         }
 
-        // Generate RPC operations
-        if !module.rpcs.is_empty() {
-            content.push_str(&self.generate_rpc_operations(module)?);
+        // Generate RPC operations and CRUD operations
+        if !module.rpcs.is_empty() || !module.data_nodes.is_empty() {
+            content.push_str(&self.generate_operations_module(module)?);
+            content.push('\n');
+        }
+
+        // Generate notification types
+        if !module.notifications.is_empty() {
+            content.push_str(&self.generate_notifications(module)?);
             content.push('\n');
         }
 
@@ -948,28 +954,316 @@ impl CodeGenerator {
         output
     }
 
-    /// Generate RPC operations module.
-    fn generate_rpc_operations(&self, module: &YangModule) -> Result<String, GeneratorError> {
+    /// Generate operations module (RPC and CRUD operations).
+    fn generate_operations_module(&self, module: &YangModule) -> Result<String, GeneratorError> {
         let mut output = String::new();
 
-        output.push_str("/// RESTCONF RPC operations.\n");
+        output.push_str("/// RESTCONF operations.\n");
         output.push_str("pub mod operations {\n");
         output.push_str("    use super::*;\n");
         output.push('\n');
 
         // Generate input/output types and functions for each RPC
-        for rpc in &module.rpcs {
-            let types = self.generate_rpc_types(rpc, module)?;
-            if !types.is_empty() {
-                output.push_str(&types);
+        if !module.rpcs.is_empty() {
+            for rpc in &module.rpcs {
+                let types = self.generate_rpc_types(rpc, module)?;
+                if !types.is_empty() {
+                    output.push_str(&types);
+                }
+                output.push_str(&self.generate_rpc_function(rpc)?);
+                output.push('\n');
             }
-            output.push_str(&self.generate_rpc_function(rpc)?);
-            output.push('\n');
+        }
+
+        // Generate RESTCONF CRUD operations for data nodes
+        if !module.data_nodes.is_empty() {
+            output.push_str(&self.generate_crud_operations(module)?);
         }
 
         output.push_str("}\n");
 
         Ok(output)
+    }
+
+    /// Generate RESTCONF CRUD operations for data nodes.
+    fn generate_crud_operations(&self, module: &YangModule) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        output.push_str("    /// RESTCONF CRUD operations for data resources.\n");
+        output.push_str("    pub mod crud {\n");
+        output.push_str("        use super::*;\n");
+        output.push('\n');
+
+        // Generate CRUD operations for each top-level data node
+        for node in &module.data_nodes {
+            output.push_str(&self.generate_node_crud_operations(node, module)?);
+        }
+
+        output.push_str("    }\n");
+
+        Ok(output)
+    }
+
+    /// Generate CRUD operations for a specific data node.
+    fn generate_node_crud_operations(
+        &self,
+        node: &crate::parser::DataNode,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        use crate::parser::DataNode;
+
+        match node {
+            DataNode::Container(container) => {
+                self.generate_container_crud_operations(container, module)
+            }
+            DataNode::List(list) => self.generate_list_crud_operations(list, module),
+            DataNode::Leaf(_) => Ok(String::new()), // Top-level leaves are rare
+            DataNode::LeafList(_) => Ok(String::new()),
+            DataNode::Choice(_) => Ok(String::new()),
+            DataNode::Case(_) => Ok(String::new()),
+            DataNode::Uses(_) => Ok(String::new()),
+        }
+    }
+
+    /// Generate CRUD operations for a container.
+    fn generate_container_crud_operations(
+        &self,
+        container: &crate::parser::Container,
+        _module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let type_name = naming::to_type_name(&container.name);
+        let function_prefix = naming::to_field_name(&container.name);
+
+        // Generate GET operation (always available for containers)
+        output.push_str(&format!(
+            "        /// Retrieve the {} container.\n",
+            container.name
+        ));
+        output.push_str("        ///\n");
+        output.push_str("        /// # Errors\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns an error if the operation fails.\n");
+        output.push_str(&format!(
+            "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
+            function_prefix, type_name
+        ));
+        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
+        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
+        output.push_str("        }\n\n");
+
+        // Generate config-based operations (PUT, PATCH, DELETE) only if config is true
+        if container.config {
+            // PUT operation - replace entire container
+            output.push_str(&format!(
+                "        /// Replace the {} container.\n",
+                container.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn put_{}(data: {}) -> Result<(), RpcError> {{\n",
+                function_prefix, type_name
+            ));
+            output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
+            output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+
+            // PATCH operation - partial update
+            output.push_str(&format!(
+                "        /// Partially update the {} container.\n",
+                container.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn patch_{}(data: {}) -> Result<(), RpcError> {{\n",
+                function_prefix, type_name
+            ));
+            output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
+            output
+                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+
+            // DELETE operation - remove container
+            output.push_str(&format!(
+                "        /// Delete the {} container.\n",
+                container.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn delete_{}() -> Result<(), RpcError> {{\n",
+                function_prefix
+            ));
+            output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
+            output
+                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+        }
+
+        Ok(output)
+    }
+
+    /// Generate CRUD operations for a list.
+    fn generate_list_crud_operations(
+        &self,
+        list: &crate::parser::List,
+        _module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let type_name = naming::to_type_name(&list.name);
+        let function_prefix = naming::to_field_name(&list.name);
+
+        // Determine item type name (singular)
+        let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
+            &type_name[..type_name.len() - 1]
+        } else {
+            &type_name
+        };
+
+        // Generate GET operation for entire list
+        output.push_str(&format!("        /// Retrieve all {} items.\n", list.name));
+        output.push_str("        ///\n");
+        output.push_str("        /// # Errors\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns an error if the operation fails.\n");
+        output.push_str(&format!(
+            "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
+            function_prefix, type_name
+        ));
+        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
+        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
+        output.push_str("        }\n\n");
+
+        // Generate key parameter types for operations that need them
+        let key_params = self.generate_list_key_params(list);
+
+        // GET operation for single item by key
+        output.push_str(&format!(
+            "        /// Retrieve a single {} item by key.\n",
+            list.name
+        ));
+        output.push_str("        ///\n");
+        output.push_str("        /// # Errors\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns an error if the operation fails.\n");
+        output.push_str(&format!(
+            "        pub async fn get_{}_by_key({}) -> Result<{}, RpcError> {{\n",
+            function_prefix, key_params, item_type_name
+        ));
+        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
+        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
+        output.push_str("        }\n\n");
+
+        // Generate config-based operations only if config is true
+        if list.config {
+            // POST operation - create new item
+            output.push_str(&format!("        /// Create a new {} item.\n", list.name));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn create_{}(data: {}) -> Result<(), RpcError> {{\n",
+                function_prefix, item_type_name
+            ));
+            output.push_str("            // TODO: Implement POST request to RESTCONF server\n");
+            output.push_str("            unimplemented!(\"POST operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+
+            // PUT operation - replace item by key
+            output.push_str(&format!(
+                "        /// Replace a {} item by key.\n",
+                list.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn put_{}({}, data: {}) -> Result<(), RpcError> {{\n",
+                function_prefix, key_params, item_type_name
+            ));
+            output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
+            output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+
+            // PATCH operation - partial update by key
+            output.push_str(&format!(
+                "        /// Partially update a {} item by key.\n",
+                list.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn patch_{}({}, data: {}) -> Result<(), RpcError> {{\n",
+                function_prefix, key_params, item_type_name
+            ));
+            output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
+            output
+                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+
+            // DELETE operation - remove item by key
+            output.push_str(&format!(
+                "        /// Delete a {} item by key.\n",
+                list.name
+            ));
+            output.push_str("        ///\n");
+            output.push_str("        /// # Errors\n");
+            output.push_str("        ///\n");
+            output.push_str("        /// Returns an error if the operation fails.\n");
+            output.push_str(&format!(
+                "        pub async fn delete_{}({}) -> Result<(), RpcError> {{\n",
+                function_prefix, key_params
+            ));
+            output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
+            output
+                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
+            output.push_str("        }\n\n");
+        }
+
+        Ok(output)
+    }
+
+    /// Generate parameter list for list key fields.
+    fn generate_list_key_params(&self, list: &crate::parser::List) -> String {
+        let mut params = Vec::new();
+
+        for key in &list.keys {
+            // Find the key field in the list's children to get its type
+            let key_type = self.find_key_type(key, &list.children);
+            let param_name = naming::to_field_name(key);
+            params.push(format!("{}: {}", param_name, key_type));
+        }
+
+        params.join(", ")
+    }
+
+    /// Find the type of a key field in a list's children.
+    fn find_key_type(&self, key_name: &str, children: &[crate::parser::DataNode]) -> String {
+        use crate::parser::DataNode;
+
+        for child in children {
+            if let DataNode::Leaf(leaf) = child {
+                if leaf.name == key_name {
+                    // Key fields are always mandatory
+                    return self.generate_leaf_type(&leaf.type_spec, true);
+                }
+            }
+        }
+
+        // Default to String if key type not found
+        "String".to_string()
     }
 
     /// Generate input and output types for an RPC.
@@ -1090,6 +1384,65 @@ impl CodeGenerator {
         Ok(output)
     }
 
+    /// Generate notification types.
+    fn generate_notifications(&self, module: &YangModule) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        output.push_str("/// RESTCONF notification types.\n");
+        output.push_str("pub mod notifications {\n");
+        output.push_str("    use super::*;\n");
+        output.push('\n');
+
+        // Generate struct for each notification
+        for notification in &module.notifications {
+            output.push_str(&self.generate_notification_type(notification, module)?);
+            output.push('\n');
+        }
+
+        output.push_str("}\n");
+
+        Ok(output)
+    }
+
+    /// Generate a struct type for a notification.
+    fn generate_notification_type(
+        &self,
+        notification: &crate::parser::Notification,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let notification_type_name = naming::to_type_name(&notification.name);
+
+        // Generate rustdoc comment from notification description
+        if let Some(ref description) = notification.description {
+            output.push_str(&format!("    {}", self.generate_rustdoc(description)));
+        } else {
+            output.push_str(&format!(
+                "    /// Notification payload for {}.\n",
+                notification.name
+            ));
+        }
+
+        // Generate derive attributes
+        output.push_str(&format!("    {}", self.generate_derive_attributes()));
+
+        // Generate struct definition
+        output.push_str(&format!("    pub struct {} {{\n", notification_type_name));
+
+        // Generate fields from notification data nodes
+        for node in &notification.data_nodes {
+            let field = self.generate_struct_field(node, module)?;
+            // Add indentation for nested struct
+            for line in field.lines() {
+                output.push_str(&format!("    {}\n", line));
+            }
+        }
+
+        output.push_str("    }\n");
+
+        Ok(output)
+    }
+
     /// Write generated files to the output directory.
     pub fn write_files(&self, generated: &GeneratedCode) -> Result<(), GeneratorError> {
         // Create output directory if it doesn't exist
@@ -1140,3 +1493,12 @@ mod rpc_tests;
 
 #[cfg(test)]
 mod rpc_integration_test;
+
+#[cfg(test)]
+mod notification_tests;
+
+#[cfg(test)]
+mod notification_integration_test;
+
+#[cfg(test)]
+mod crud_tests;
