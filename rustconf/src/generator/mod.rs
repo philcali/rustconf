@@ -75,6 +75,12 @@ impl CodeGenerator {
             content.push('\n');
         }
 
+        // Generate RpcError type if there are RPCs
+        if !module.rpcs.is_empty() {
+            content.push_str(&self.generate_rpc_error());
+            content.push('\n');
+        }
+
         // Collect all validated types needed
         let validated_types = self.collect_validated_types(module);
 
@@ -94,6 +100,12 @@ impl CodeGenerator {
         // Generate type definitions from data nodes
         for data_node in &module.data_nodes {
             content.push_str(&self.generate_data_node(data_node, module)?);
+            content.push('\n');
+        }
+
+        // Generate RPC operations
+        if !module.rpcs.is_empty() {
+            content.push_str(&self.generate_rpc_operations(module)?);
             content.push('\n');
         }
 
@@ -887,6 +899,197 @@ impl CodeGenerator {
         uses
     }
 
+    /// Generate RPC error type.
+    fn generate_rpc_error(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// Error type for RPC operations.\n");
+
+        let mut derives = vec!["Debug"];
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+        output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+
+        output.push_str("pub enum RpcError {\n");
+        output.push_str("    /// Network or communication error.\n");
+        output.push_str("    NetworkError(String),\n");
+        output.push_str("    /// Server returned an error response.\n");
+        output.push_str("    ServerError { code: u16, message: String },\n");
+        output.push_str("    /// Serialization or deserialization error.\n");
+        output.push_str("    SerializationError(String),\n");
+        output.push_str("    /// Invalid input parameters.\n");
+        output.push_str("    InvalidInput(String),\n");
+        output.push_str("    /// Operation not implemented.\n");
+        output.push_str("    NotImplemented,\n");
+        output.push_str("}\n\n");
+
+        output.push_str("impl std::fmt::Display for RpcError {\n");
+        output
+            .push_str("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n");
+        output.push_str("        match self {\n");
+        output.push_str(
+            "            RpcError::NetworkError(msg) => write!(f, \"Network error: {}\", msg),\n",
+        );
+        output.push_str("            RpcError::ServerError { code, message } => write!(f, \"Server error {}: {}\", code, message),\n");
+        output.push_str("            RpcError::SerializationError(msg) => write!(f, \"Serialization error: {}\", msg),\n");
+        output.push_str(
+            "            RpcError::InvalidInput(msg) => write!(f, \"Invalid input: {}\", msg),\n",
+        );
+        output.push_str(
+            "            RpcError::NotImplemented => write!(f, \"Operation not implemented\"),\n",
+        );
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+        output.push_str("}\n\n");
+
+        output.push_str("impl std::error::Error for RpcError {}\n");
+
+        output
+    }
+
+    /// Generate RPC operations module.
+    fn generate_rpc_operations(&self, module: &YangModule) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        output.push_str("/// RESTCONF RPC operations.\n");
+        output.push_str("pub mod operations {\n");
+        output.push_str("    use super::*;\n");
+        output.push('\n');
+
+        // Generate input/output types and functions for each RPC
+        for rpc in &module.rpcs {
+            let types = self.generate_rpc_types(rpc, module)?;
+            if !types.is_empty() {
+                output.push_str(&types);
+            }
+            output.push_str(&self.generate_rpc_function(rpc)?);
+            output.push('\n');
+        }
+
+        output.push_str("}\n");
+
+        Ok(output)
+    }
+
+    /// Generate input and output types for an RPC.
+    fn generate_rpc_types(
+        &self,
+        rpc: &crate::parser::Rpc,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let rpc_type_name = naming::to_type_name(&rpc.name);
+
+        // Generate input type if RPC has input
+        if let Some(ref input_nodes) = rpc.input {
+            if !input_nodes.is_empty() {
+                output.push_str(&format!("    /// Input parameters for {} RPC.\n", rpc.name));
+                output.push_str(&format!("    {}", self.generate_derive_attributes()));
+                output.push_str(&format!("    pub struct {}Input {{\n", rpc_type_name));
+
+                // Generate fields from input nodes
+                for node in input_nodes {
+                    let field = self.generate_struct_field(node, module)?;
+                    // Add indentation for nested struct
+                    for line in field.lines() {
+                        output.push_str(&format!("    {}\n", line));
+                    }
+                }
+
+                output.push_str("    }\n\n");
+            }
+        }
+
+        // Generate output type if RPC has output
+        if let Some(ref output_nodes) = rpc.output {
+            if !output_nodes.is_empty() {
+                output.push_str(&format!("    /// Output result for {} RPC.\n", rpc.name));
+                output.push_str(&format!("    {}", self.generate_derive_attributes()));
+                output.push_str(&format!("    pub struct {}Output {{\n", rpc_type_name));
+
+                // Generate fields from output nodes
+                for node in output_nodes {
+                    let field = self.generate_struct_field(node, module)?;
+                    // Add indentation for nested struct
+                    for line in field.lines() {
+                        output.push_str(&format!("    {}\n", line));
+                    }
+                }
+
+                output.push_str("    }\n\n");
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Generate an async function for an RPC operation.
+    fn generate_rpc_function(&self, rpc: &crate::parser::Rpc) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let rpc_type_name = naming::to_type_name(&rpc.name);
+        let function_name = naming::to_field_name(&rpc.name);
+
+        // Generate rustdoc comment from RPC description
+        if let Some(ref description) = rpc.description {
+            output.push_str(&format!("    {}", self.generate_rustdoc(description)));
+        } else {
+            output.push_str(&format!(
+                "    /// Execute the {} RPC operation.\n",
+                rpc.name
+            ));
+        }
+
+        // Add error handling documentation
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns an error if the RPC operation fails.\n");
+
+        // Determine input parameter type
+        let input_param = if let Some(ref input_nodes) = rpc.input {
+            if !input_nodes.is_empty() {
+                format!("input: {}Input", rpc_type_name)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        // Determine return type
+        let return_type = if let Some(ref output_nodes) = rpc.output {
+            if !output_nodes.is_empty() {
+                format!("Result<{}Output, RpcError>", rpc_type_name)
+            } else {
+                "Result<(), RpcError>".to_string()
+            }
+        } else {
+            "Result<(), RpcError>".to_string()
+        };
+
+        // Generate function signature
+        if input_param.is_empty() {
+            output.push_str(&format!(
+                "    pub async fn {}() -> {} {{\n",
+                function_name, return_type
+            ));
+        } else {
+            output.push_str(&format!(
+                "    pub async fn {}({}) -> {} {{\n",
+                function_name, input_param, return_type
+            ));
+        }
+
+        // Generate function body (placeholder implementation)
+        output.push_str("        // TODO: Implement RPC call logic\n");
+        output.push_str("        // This is a placeholder that should be replaced with actual RESTCONF client implementation\n");
+        output.push_str("        unimplemented!(\"RPC operation not yet implemented\")\n");
+        output.push_str("    }\n");
+
+        Ok(output)
+    }
+
     /// Write generated files to the output directory.
     pub fn write_files(&self, generated: &GeneratedCode) -> Result<(), GeneratorError> {
         // Create output directory if it doesn't exist
@@ -931,3 +1134,9 @@ mod tests;
 
 #[cfg(test)]
 mod integration_test;
+
+#[cfg(test)]
+mod rpc_tests;
+
+#[cfg(test)]
+mod rpc_integration_test;
