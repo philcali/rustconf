@@ -93,7 +93,7 @@ impl CodeGenerator {
 
         // Generate type definitions from data nodes
         for data_node in &module.data_nodes {
-            content.push_str(&self.generate_data_node(data_node)?);
+            content.push_str(&self.generate_data_node(data_node, module)?);
             content.push('\n');
         }
 
@@ -101,15 +101,19 @@ impl CodeGenerator {
     }
 
     /// Generate code for a data node.
-    fn generate_data_node(&self, node: &crate::parser::DataNode) -> Result<String, GeneratorError> {
+    fn generate_data_node(
+        &self,
+        node: &crate::parser::DataNode,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
         use crate::parser::DataNode;
 
         match node {
-            DataNode::Container(container) => self.generate_container(container),
-            DataNode::List(list) => self.generate_list(list),
+            DataNode::Container(container) => self.generate_container(container, module),
+            DataNode::List(list) => self.generate_list(list, module),
             DataNode::Leaf(_) => Ok(String::new()), // Leaves are handled as struct fields
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(choice) => self.generate_choice(choice),
+            DataNode::Choice(choice) => self.generate_choice(choice, module),
             DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
             DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
         }
@@ -119,6 +123,7 @@ impl CodeGenerator {
     fn generate_container(
         &self,
         container: &crate::parser::Container,
+        module: &YangModule,
     ) -> Result<String, GeneratorError> {
         let mut output = String::new();
 
@@ -136,7 +141,7 @@ impl CodeGenerator {
 
         // Generate fields from child nodes
         for child in &container.children {
-            output.push_str(&self.generate_struct_field(child)?);
+            output.push_str(&self.generate_struct_field(child, module)?);
         }
 
         output.push_str("}\n");
@@ -146,15 +151,15 @@ impl CodeGenerator {
             match child {
                 crate::parser::DataNode::Container(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_container(nested)?);
+                    output.push_str(&self.generate_container(nested, module)?);
                 }
                 crate::parser::DataNode::List(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_list(nested)?);
+                    output.push_str(&self.generate_list(nested, module)?);
                 }
                 crate::parser::DataNode::Choice(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_choice(nested)?);
+                    output.push_str(&self.generate_choice(nested, module)?);
                 }
                 _ => {}
             }
@@ -164,7 +169,11 @@ impl CodeGenerator {
     }
 
     /// Generate a Rust enum from a YANG choice.
-    fn generate_choice(&self, choice: &crate::parser::Choice) -> Result<String, GeneratorError> {
+    fn generate_choice(
+        &self,
+        choice: &crate::parser::Choice,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
         let mut output = String::new();
 
         // Generate rustdoc comment from YANG description
@@ -225,7 +234,7 @@ impl CodeGenerator {
                     && !matches!(case.data_nodes[0], crate::parser::DataNode::Leaf(_)))
             {
                 output.push('\n');
-                output.push_str(&self.generate_case_struct(case)?);
+                output.push_str(&self.generate_case_struct(case, module)?);
             }
         }
 
@@ -235,11 +244,11 @@ impl CodeGenerator {
                 match node {
                     crate::parser::DataNode::Container(nested) => {
                         output.push('\n');
-                        output.push_str(&self.generate_container(nested)?);
+                        output.push_str(&self.generate_container(nested, module)?);
                     }
                     crate::parser::DataNode::List(nested) => {
                         output.push('\n');
-                        output.push_str(&self.generate_list(nested)?);
+                        output.push_str(&self.generate_list(nested, module)?);
                     }
                     _ => {}
                 }
@@ -250,7 +259,11 @@ impl CodeGenerator {
     }
 
     /// Generate a struct for a case with multiple data nodes.
-    fn generate_case_struct(&self, case: &crate::parser::Case) -> Result<String, GeneratorError> {
+    fn generate_case_struct(
+        &self,
+        case: &crate::parser::Case,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
         let mut output = String::new();
 
         // Generate rustdoc comment from case description
@@ -268,7 +281,7 @@ impl CodeGenerator {
 
         // Generate fields from data nodes
         for node in &case.data_nodes {
-            output.push_str(&self.generate_struct_field(node)?);
+            output.push_str(&self.generate_struct_field(node, module)?);
         }
 
         output.push_str("}\n");
@@ -277,7 +290,11 @@ impl CodeGenerator {
     }
 
     /// Generate a Rust struct and Vec type alias from a YANG list.
-    fn generate_list(&self, list: &crate::parser::List) -> Result<String, GeneratorError> {
+    fn generate_list(
+        &self,
+        list: &crate::parser::List,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
         let mut output = String::new();
 
         // Generate rustdoc comment from YANG description
@@ -302,7 +319,7 @@ impl CodeGenerator {
         // Generate fields from child nodes
         // Key fields must be non-optional
         for child in &list.children {
-            output.push_str(&self.generate_list_field(child, &list.keys)?);
+            output.push_str(&self.generate_list_field(child, &list.keys, module)?);
         }
 
         output.push_str("}\n\n");
@@ -319,15 +336,15 @@ impl CodeGenerator {
             match child {
                 crate::parser::DataNode::Container(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_container(nested)?);
+                    output.push_str(&self.generate_container(nested, module)?);
                 }
                 crate::parser::DataNode::List(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_list(nested)?);
+                    output.push_str(&self.generate_list(nested, module)?);
                 }
                 crate::parser::DataNode::Choice(nested) => {
                     output.push('\n');
-                    output.push_str(&self.generate_choice(nested)?);
+                    output.push_str(&self.generate_choice(nested, module)?);
                 }
                 _ => {}
             }
@@ -342,6 +359,7 @@ impl CodeGenerator {
         &self,
         node: &crate::parser::DataNode,
         keys: &[String],
+        module: &YangModule,
     ) -> Result<String, GeneratorError> {
         use crate::parser::DataNode;
 
@@ -358,7 +376,8 @@ impl CodeGenerator {
                 let is_key = keys.contains(&leaf.name);
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", leaf.name)];
+                let field_name_json = self.get_json_field_name(&leaf.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 // Key fields are always mandatory, so only add skip_serializing_if for non-key optional fields
                 if !is_key && !leaf.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
@@ -386,7 +405,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", container.name)];
+                let field_name_json = self.get_json_field_name(&container.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 if !container.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
                 }
@@ -413,10 +433,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                field.push_str(&format!(
-                    "    #[serde(rename = \"{}\")]\n",
-                    nested_list.name
-                ));
+                let field_name_json = self.get_json_field_name(&nested_list.name, module);
+                field.push_str(&format!("    #[serde(rename = \"{}\")]\n", field_name_json));
 
                 // Generate field name and type
                 let field_name = naming::to_field_name(&nested_list.name);
@@ -436,7 +454,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", choice.name)];
+                let field_name_json = self.get_json_field_name(&choice.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 if !choice.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
                 }
@@ -463,6 +482,7 @@ impl CodeGenerator {
     fn generate_struct_field(
         &self,
         node: &crate::parser::DataNode,
+        module: &YangModule,
     ) -> Result<String, GeneratorError> {
         use crate::parser::DataNode;
 
@@ -476,7 +496,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", leaf.name)];
+                let field_name_json = self.get_json_field_name(&leaf.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 if !leaf.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
                 }
@@ -498,7 +519,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", container.name)];
+                let field_name_json = self.get_json_field_name(&container.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 if !container.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
                 }
@@ -525,7 +547,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                field.push_str(&format!("    #[serde(rename = \"{}\")]\n", list.name));
+                let field_name_json = self.get_json_field_name(&list.name, module);
+                field.push_str(&format!("    #[serde(rename = \"{}\")]\n", field_name_json));
 
                 // Generate field name and type
                 let field_name = naming::to_field_name(&list.name);
@@ -545,7 +568,8 @@ impl CodeGenerator {
                 }
 
                 // Build serde attributes
-                let mut serde_attrs = vec![format!("rename = \"{}\"", choice.name)];
+                let field_name_json = self.get_json_field_name(&choice.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
                 if !choice.mandatory {
                     serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
                 }
@@ -791,6 +815,18 @@ impl CodeGenerator {
         }
 
         rustdoc
+    }
+
+    /// Get the JSON field name for a YANG node, with optional namespace prefix.
+    ///
+    /// For RESTCONF JSON compliance (RFC 8040), field names can be prefixed with
+    /// the module prefix when namespace prefixes are enabled.
+    fn get_json_field_name(&self, yang_name: &str, module: &YangModule) -> String {
+        if self.config.enable_namespace_prefixes {
+            format!("{}:{}", module.prefix, yang_name)
+        } else {
+            yang_name.to_string()
+        }
     }
 
     /// Generate derive attributes based on configuration.
