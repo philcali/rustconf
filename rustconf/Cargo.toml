@@ -19,6 +19,7 @@ proc-macro2.workspace = true
 prettyplease.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

@@ -37,3 +37,6 @@ thiserror = "1.0"
 
 # Date/time utilities
 chrono = "0.4"
+
+# Regular expressions
+regex = "1.10"

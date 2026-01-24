@@ -1628,3 +1628,395 @@ fn test_generate_choice_with_nested_list() {
     assert!(content.contains("/// Database servers"));
     assert!(content.contains("pub type Servers = Vec<Server>;"));
 }
+
+#[test]
+fn test_generate_validated_int_with_range() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "port".to_string(),
+                description: Some("Port number".to_string()),
+                type_spec: TypeSpec::Uint16 {
+                    range: Some(RangeConstraint::new(vec![Range::new(1, 65535)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check ValidationError is generated
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("OutOfRange"));
+
+    // Check validated type is generated
+    assert!(content.contains("pub struct ValidatedUint16_"));
+    assert!(content.contains("value: u16"));
+    assert!(content.contains("pub fn new(value: u16) -> Result<Self, ValidationError>"));
+    assert!(content.contains("pub fn value(&self) -> u16"));
+
+    // Check TryFrom implementation
+    assert!(content.contains("impl TryFrom<u16> for ValidatedUint16_"));
+
+    // Check Serialize/Deserialize implementations
+    assert!(content.contains("impl serde::Serialize for ValidatedUint16_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+
+    // Check field uses validated type
+    assert!(content.contains("pub port: ValidatedUint16_"));
+}
+
+#[test]
+fn test_generate_validated_string_with_length() {
+    use crate::parser::{Container, DataNode, Leaf, LengthConstraint, LengthRange, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "user".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "username".to_string(),
+                description: Some("Username".to_string()),
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(3, 20)])),
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check ValidationError is generated
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("InvalidLength"));
+
+    // Check validated type is generated
+    assert!(content.contains("pub struct ValidatedString_"));
+    assert!(content.contains("value: String"));
+    assert!(content.contains("pub fn new(value: String) -> Result<Self, ValidationError>"));
+    assert!(content.contains("pub fn value(&self) -> &str"));
+
+    // Check length validation logic
+    assert!(content.contains("let length = value.len() as u64"));
+    assert!(content.contains("length >= 3 && length <= 20"));
+
+    // Check field uses validated type
+    assert!(content.contains("pub username: ValidatedString_"));
+}
+
+#[test]
+fn test_generate_validated_string_with_pattern() {
+    use crate::parser::{Container, DataNode, Leaf, PatternConstraint, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "email".to_string(),
+                description: Some("Email address".to_string()),
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: Some(PatternConstraint::new("[a-z]+@[a-z]+\\.[a-z]+".to_string())),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check ValidationError is generated
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("InvalidPattern"));
+
+    // Check validated type is generated
+    assert!(content.contains("pub struct ValidatedString_"));
+
+    // Check pattern validation logic
+    assert!(content.contains("regex::Regex::new"));
+    assert!(content.contains("pattern.is_match"));
+
+    // Check field uses validated type
+    assert!(content.contains("pub email: ValidatedString_"));
+}
+
+#[test]
+fn test_generate_optional_validated_type() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "timeout".to_string(),
+                description: Some("Timeout in seconds".to_string()),
+                type_spec: TypeSpec::Uint32 {
+                    range: Some(RangeConstraint::new(vec![Range::new(1, 3600)])),
+                },
+                mandatory: false,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check validated type is generated
+    assert!(content.contains("pub struct ValidatedUint32_"));
+
+    // Check field uses Option<ValidatedType>
+    assert!(content.contains("pub timeout: Option<ValidatedUint32_"));
+}
+
+#[test]
+fn test_validation_disabled_uses_base_types() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: false,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "port".to_string(),
+                description: Some("Port number".to_string()),
+                type_spec: TypeSpec::Uint16 {
+                    range: Some(RangeConstraint::new(vec![Range::new(1, 65535)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check ValidationError is NOT generated
+    assert!(!content.contains("pub enum ValidationError"));
+
+    // Check validated type is NOT generated
+    assert!(!content.contains("pub struct ValidatedUint16_"));
+
+    // Check field uses base type
+    assert!(content.contains("pub port: u16,"));
+}
+
+#[test]
+fn test_generate_multiple_validated_types() {
+    use crate::parser::{
+        Container, DataNode, Leaf, LengthConstraint, LengthRange, Range, RangeConstraint, TypeSpec,
+    };
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "server".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "port".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint16 {
+                        range: Some(RangeConstraint::new(vec![Range::new(1, 65535)])),
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "hostname".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: Some(LengthConstraint::new(vec![LengthRange::new(1, 255)])),
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check both validated types are generated
+    assert!(content.contains("pub struct ValidatedUint16_"));
+    assert!(content.contains("pub struct ValidatedString_"));
+
+    // Check both fields use validated types
+    assert!(content.contains("pub port: ValidatedUint16_"));
+    assert!(content.contains("pub hostname: ValidatedString_"));
+}
+
+#[test]
+fn test_validation_error_display_implementation() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "value".to_string(),
+                description: None,
+                type_spec: TypeSpec::Int32 {
+                    range: Some(RangeConstraint::new(vec![Range::new(0, 100)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check Display implementation
+    assert!(content.contains("impl std::fmt::Display for ValidationError"));
+    assert!(content.contains("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result"));
+
+    // Check Error trait implementation
+    assert!(content.contains("impl std::error::Error for ValidationError"));
+}
