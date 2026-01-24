@@ -235,7 +235,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Handle namespace prefixes in JSON field names
     - _Requirements: 5.1, 5.2, 5.5_
   
-  - [ ] 9.2 Write unit tests for JSON serialization
+  - [x] 9.2 Write unit tests for JSON serialization
     - Test serialization of simple structs to JSON
     - Test field name conversion (snake_case to kebab-case)
     - Test optional field handling (skip_serializing_if)
@@ -248,13 +248,13 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Add conditional compilation for XML features
     - _Requirements: 5.4, 5.5, 9.3_
   
-  - [ ] 9.4 Generate validation in Deserialize implementations
+  - [x] 9.4 Generate validation in Deserialize implementations
     - Add custom deserialize implementations for constrained types
     - Return descriptive errors for constraint violations
     - Include violating value and constraint in error messages
     - _Requirements: 5.3, 7.3_
   
-  - [ ] 9.5 Write unit tests for deserialization validation
+  - [x] 9.5 Write unit tests for deserialization validation
     - Test deserialization of valid data succeeds
     - Test deserialization of invalid data returns errors
     - Test error messages include constraint details

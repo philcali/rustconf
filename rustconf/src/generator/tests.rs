@@ -2542,3 +2542,1522 @@ fn test_generated_code_with_namespace_prefix_compiles() {
     assert!(content.contains("pub struct Interface"));
     assert!(content.contains("pub name: String"));
 }
+
+// Tests for JSON serialization behavior (Task 9.2)
+
+#[test]
+fn test_simple_struct_json_serialization() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "simple-config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "enabled".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify the generated code has correct serde attributes
+    assert!(content.contains(r#"#[serde(rename = "name")]"#));
+    assert!(content.contains(r#"#[serde(rename = "enabled")]"#));
+    assert!(content.contains("pub struct SimpleConfig"));
+    assert!(content.contains("pub name: String"));
+    assert!(content.contains("pub enabled: bool"));
+}
+
+#[test]
+fn test_field_name_conversion_snake_case_to_kebab_case() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "device-name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "max-connections".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint32 { range: None },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "is-active".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify YANG kebab-case names are preserved in serde rename
+    assert!(content.contains(r#"#[serde(rename = "device-name")]"#));
+    assert!(content.contains(r#"#[serde(rename = "max-connections")]"#));
+    assert!(content.contains(r#"#[serde(rename = "is-active")]"#));
+
+    // Verify Rust field names use snake_case
+    assert!(content.contains("pub device_name: String"));
+    assert!(content.contains("pub max_connections: u32"));
+    assert!(content.contains("pub is_active: bool"));
+}
+
+#[test]
+fn test_optional_field_skip_serializing_if_attribute() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "required-name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "optional-description".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "optional-count".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint32 { range: None },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify mandatory field does NOT have skip_serializing_if
+    assert!(content.contains(r#"#[serde(rename = "required-name")]"#));
+    let required_field_line = content
+        .lines()
+        .find(|line| line.contains(r#"rename = "required-name""#))
+        .unwrap();
+    assert!(!required_field_line.contains("skip_serializing_if"));
+
+    // Verify optional fields HAVE skip_serializing_if
+    assert!(content.contains(
+        r#"#[serde(rename = "optional-description", skip_serializing_if = "Option::is_none")]"#
+    ));
+    assert!(content.contains(
+        r#"#[serde(rename = "optional-count", skip_serializing_if = "Option::is_none")]"#
+    ));
+
+    // Verify field types
+    assert!(content.contains("pub required_name: String"));
+    assert!(content.contains("pub optional_description: Option<String>"));
+    assert!(content.contains("pub optional_count: Option<u32>"));
+}
+
+#[test]
+fn test_namespace_prefix_in_json_field_names() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    // Test with namespace prefixes enabled
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "interface-module".to_string(),
+        namespace: "urn:ietf:params:xml:ns:yang:interface".to_string(),
+        prefix: "if".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "type".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify namespace prefix is included in JSON field names
+    assert!(content.contains(r#"#[serde(rename = "if:name")]"#));
+    assert!(content.contains(r#"#[serde(rename = "if:type")]"#));
+
+    // Verify Rust field names don't have prefix
+    assert!(content.contains("pub name: String"));
+    assert!(content.contains("pub type_: String")); // 'type' is a Rust keyword, should be escaped
+}
+
+#[test]
+fn test_namespace_prefix_disabled() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    // Test with namespace prefixes disabled
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: false,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test-module".to_string(),
+        namespace: "urn:test:module".to_string(),
+        prefix: "tm".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "field-name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify namespace prefix is NOT included
+    assert!(content.contains(r#"#[serde(rename = "field-name")]"#));
+    assert!(!content.contains(r#"#[serde(rename = "tm:field-name")]"#));
+}
+
+#[test]
+fn test_nested_container_json_serialization_attributes() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "outer".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "outer-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Container(Container {
+                    name: "inner".to_string(),
+                    description: None,
+                    config: true,
+                    mandatory: false,
+                    children: vec![DataNode::Leaf(Leaf {
+                        name: "inner-field".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::Int32 { range: None },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify outer container fields have namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "t:outer-field")]"#));
+    assert!(content.contains(r#"rename = "t:inner""#));
+
+    // Verify inner container fields have namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "t:inner-field")]"#));
+
+    // Verify optional nested container has skip_serializing_if
+    let inner_field_line = content
+        .lines()
+        .find(|line| line.contains(r#"rename = "t:inner""#))
+        .unwrap();
+    assert!(inner_field_line.contains("skip_serializing_if"));
+}
+
+#[test]
+fn test_list_json_serialization_attributes() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "interfaces".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["name".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "mtu".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint16 { range: None },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify list item fields have namespace prefix
+    assert!(content.contains(r#"rename = "t:name""#));
+    assert!(content.contains(r#"rename = "t:mtu""#));
+
+    // Verify key field does NOT have skip_serializing_if
+    let name_field_line = content
+        .lines()
+        .find(|line| line.contains(r#"rename = "t:name""#))
+        .unwrap();
+    assert!(!name_field_line.contains("skip_serializing_if"));
+
+    // Verify optional non-key field HAS skip_serializing_if
+    assert!(content.contains(r#"skip_serializing_if = "Option::is_none""#));
+    let mtu_field_line = content
+        .lines()
+        .find(|line| line.contains(r#"rename = "t:mtu""#))
+        .unwrap();
+    assert!(mtu_field_line.contains("skip_serializing_if"));
+}
+
+#[test]
+fn test_choice_enum_json_serialization_attributes() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "address-type".to_string(),
+            description: None,
+            mandatory: false,
+            cases: vec![
+                Case {
+                    name: "ipv4-address".to_string(),
+                    description: None,
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv4".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+                Case {
+                    name: "ipv6-address".to_string(),
+                    description: None,
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv6".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify choice enum has kebab-case serialization
+    assert!(content.contains(r#"#[serde(rename_all = "kebab-case")]"#));
+    assert!(content.contains("pub enum AddressType"));
+
+    // Verify enum variants are in PascalCase
+    assert!(content.contains("Ipv4Address"));
+    assert!(content.contains("Ipv6Address"));
+}
+
+#[test]
+fn test_multiple_data_types_json_serialization() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "string-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "int8-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Int8 { range: None },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "uint32-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Uint32 { range: None },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "bool-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Verify all fields have correct serde rename attributes
+    assert!(content.contains(r#"#[serde(rename = "string-field")]"#));
+    assert!(content.contains(r#"#[serde(rename = "int8-field")]"#));
+    assert!(content.contains(r#"#[serde(rename = "uint32-field")]"#));
+    assert!(content.contains(r#"#[serde(rename = "bool-field")]"#));
+
+    // Verify field types
+    assert!(content.contains("pub string_field: String"));
+    assert!(content.contains("pub int8_field: i8"));
+    assert!(content.contains("pub uint32_field: u32"));
+    assert!(content.contains("pub bool_field: bool"));
+}
+
+#[test]
+fn test_deserialization_validation_works_for_range_constraints() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_validation".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "port".to_string(),
+                description: Some("Port number (1-65535)".to_string()),
+                type_spec: TypeSpec::Uint16 {
+                    range: Some(RangeConstraint::new(vec![Range::new(1, 65535)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("test_validation.rs")).unwrap();
+
+    // Verify the generated code includes:
+    // 1. ValidationError type
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("OutOfRange"));
+
+    // 2. Validated type with new() method
+    assert!(content.contains("pub fn new(value: u16) -> Result<Self, ValidationError>"));
+
+    // 3. Validation logic
+    assert!(content.contains("value >= 1 && value <= 65535"));
+
+    // 4. Deserialize implementation that calls new()
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // 5. Error includes value and constraint
+    assert!(content.contains("value: value.to_string()"));
+    assert!(content.contains(r#"constraint: "1..65535".to_string()"#));
+}
+
+#[test]
+fn test_deserialization_validation_works_for_length_constraints() {
+    use crate::parser::{Container, DataNode, Leaf, LengthConstraint, LengthRange, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_length".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "user".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "username".to_string(),
+                description: Some("Username (3-20 chars)".to_string()),
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(3, 20)])),
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("test_length.rs")).unwrap();
+
+    // Verify the generated code includes:
+    // 1. ValidationError type with InvalidLength variant
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("InvalidLength"));
+
+    // 2. Length validation logic
+    assert!(content.contains("let length = value.len() as u64"));
+    assert!(content.contains("length >= 3 && length <= 20"));
+
+    // 3. Deserialize implementation
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // 4. Error includes value and constraint
+    assert!(content.contains("value: value.clone()"));
+    assert!(content.contains(r#"constraint: "3..20".to_string()"#));
+}
+
+#[test]
+fn test_deserialization_validation_works_for_pattern_constraints() {
+    use crate::parser::{Container, DataNode, Leaf, PatternConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_pattern".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "email".to_string(),
+                description: Some("Email address".to_string()),
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: Some(PatternConstraint::new("[a-z]+@[a-z]+\\.[a-z]+".to_string())),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("test_pattern.rs")).unwrap();
+
+    // Verify the generated code includes:
+    // 1. ValidationError type with InvalidPattern variant
+    assert!(content.contains("pub enum ValidationError"));
+    assert!(content.contains("InvalidPattern"));
+
+    // 2. Pattern validation logic
+    assert!(content.contains("regex::Regex::new"));
+    assert!(content.contains("pattern.is_match"));
+
+    // 3. Deserialize implementation
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // 4. Error includes value and pattern
+    assert!(content.contains("value: value.clone()"));
+    assert!(content.contains(r#"pattern: "[a-z]+@[a-z]+\.[a-z]+".to_string()"#));
+}
+
+#[test]
+fn test_validation_error_messages_are_descriptive() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_errors".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "value".to_string(),
+                description: None,
+                type_spec: TypeSpec::Int32 {
+                    range: Some(RangeConstraint::new(vec![Range::new(-100, 100)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("test_errors.rs")).unwrap();
+
+    // Verify Display implementation for ValidationError
+    assert!(content.contains("impl std::fmt::Display for ValidationError"));
+
+    // Verify error messages include both value and constraint
+    assert!(content
+        .contains(r#"write!(f, "Value '{}' is outside allowed range: {}", value, constraint)"#));
+    assert!(content.contains(
+        r#"write!(f, "Value '{}' has invalid length, expected: {}", value, constraint)"#
+    ));
+    assert!(
+        content.contains(r#"write!(f, "Value '{}' does not match pattern: {}", value, pattern)"#)
+    );
+
+    // Verify Error trait implementation
+    assert!(content.contains("impl std::error::Error for ValidationError"));
+}
+
+// Task 9.5: Unit tests for deserialization validation
+// These tests verify that generated code properly validates data during deserialization
+
+#[test]
+fn test_range_validation_deserialize_valid_data_succeeds() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "valid_range_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "port".to_string(),
+                description: Some("Port number (1-65535)".to_string()),
+                type_spec: TypeSpec::Uint16 {
+                    range: Some(RangeConstraint::new(vec![Range::new(1, 65535)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("valid_range_test.rs")).unwrap();
+
+    // Verify Deserialize implementation exists and calls validation
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+    assert!(content.contains("let value = u16::deserialize(deserializer)?;"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // Verify validation logic accepts valid values
+    assert!(content.contains("value >= 1 && value <= 65535"));
+    assert!(content.contains("if valid {"));
+    assert!(content.contains("Ok(Self { value })"));
+}
+
+#[test]
+fn test_range_validation_deserialize_invalid_data_returns_error() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "invalid_range_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "value".to_string(),
+                description: None,
+                type_spec: TypeSpec::Int32 {
+                    range: Some(RangeConstraint::new(vec![Range::new(10, 100)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("invalid_range_test.rs")).unwrap();
+
+    // Verify validation logic rejects invalid values
+    assert!(content.contains("if valid {"));
+    assert!(content.contains("} else {"));
+    assert!(content.contains("Err(ValidationError::OutOfRange {"));
+
+    // Verify error is propagated through deserialize
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+}
+
+#[test]
+fn test_range_validation_error_includes_value_and_constraint() {
+    use crate::parser::{Container, DataNode, Leaf, Range, RangeConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "range_error_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "percentage".to_string(),
+                description: None,
+                type_spec: TypeSpec::Uint8 {
+                    range: Some(RangeConstraint::new(vec![Range::new(0, 100)])),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("range_error_test.rs")).unwrap();
+
+    // Verify error includes the violating value
+    assert!(content.contains("value: value.to_string()"));
+
+    // Verify error includes the constraint details
+    assert!(content.contains(r#"constraint: "0..100".to_string()"#));
+
+    // Verify Display implementation shows both value and constraint
+    assert!(content
+        .contains(r#"write!(f, "Value '{}' is outside allowed range: {}", value, constraint)"#));
+}
+
+#[test]
+fn test_length_validation_deserialize_valid_data_succeeds() {
+    use crate::parser::{Container, DataNode, Leaf, LengthConstraint, LengthRange, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "valid_length_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "user".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "username".to_string(),
+                description: Some("Username (3-20 chars)".to_string()),
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(3, 20)])),
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("valid_length_test.rs")).unwrap();
+
+    // Verify Deserialize implementation exists and calls validation
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("let value = String::deserialize(deserializer)?;"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // Verify length validation logic
+    assert!(content.contains("let length = value.len() as u64"));
+    assert!(content.contains("length >= 3 && length <= 20"));
+    assert!(content.contains("if !length_valid {"));
+    assert!(content.contains("return Err(ValidationError::InvalidLength {"));
+}
+
+#[test]
+fn test_length_validation_deserialize_invalid_data_returns_error() {
+    use crate::parser::{Container, DataNode, Leaf, LengthConstraint, LengthRange, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "invalid_length_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "code".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(5, 10)])),
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("invalid_length_test.rs")).unwrap();
+
+    // Verify validation rejects invalid lengths
+    assert!(content.contains("if !length_valid {"));
+    assert!(content.contains("return Err(ValidationError::InvalidLength {"));
+    assert!(content.contains("value: value.clone()"));
+
+    // Verify error is propagated through deserialize
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+}
+
+#[test]
+fn test_length_validation_error_includes_value_and_constraint() {
+    use crate::parser::{Container, DataNode, Leaf, LengthConstraint, LengthRange, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "length_error_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "data".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(1, 50)])),
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("length_error_test.rs")).unwrap();
+
+    // Verify error includes the violating value
+    assert!(content.contains("value: value.clone()"));
+
+    // Verify error includes the constraint details
+    assert!(content.contains(r#"constraint: "1..50".to_string()"#));
+
+    // Verify Display implementation shows both value and constraint
+    assert!(content.contains(
+        r#"write!(f, "Value '{}' has invalid length, expected: {}", value, constraint)"#
+    ));
+}
+
+#[test]
+fn test_pattern_validation_deserialize_valid_data_succeeds() {
+    use crate::parser::{Container, DataNode, Leaf, PatternConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "valid_pattern_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "email".to_string(),
+                description: Some("Email address".to_string()),
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: Some(PatternConstraint::new("[a-z]+@[a-z]+\\.[a-z]+".to_string())),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("valid_pattern_test.rs")).unwrap();
+
+    // Verify Deserialize implementation exists and calls validation
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("let value = String::deserialize(deserializer)?;"));
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+
+    // Verify pattern validation logic
+    assert!(content.contains("regex::Regex::new"));
+    assert!(content.contains("pattern.is_match(&value)"));
+    assert!(content.contains("if !pattern.is_match(&value) {"));
+    assert!(content.contains("return Err(ValidationError::InvalidPattern {"));
+}
+
+#[test]
+fn test_pattern_validation_deserialize_invalid_data_returns_error() {
+    use crate::parser::{Container, DataNode, Leaf, PatternConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "invalid_pattern_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "ipv4".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: Some(PatternConstraint::new(
+                        "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}".to_string(),
+                    )),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("invalid_pattern_test.rs")).unwrap();
+
+    // Verify validation rejects non-matching patterns
+    assert!(content.contains("if !pattern.is_match(&value) {"));
+    assert!(content.contains("return Err(ValidationError::InvalidPattern {"));
+    assert!(content.contains("value: value.clone()"));
+
+    // Verify error is propagated through deserialize
+    assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
+}
+
+#[test]
+fn test_pattern_validation_error_includes_value_and_pattern() {
+    use crate::parser::{Container, DataNode, Leaf, PatternConstraint, TypeSpec};
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "pattern_error_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "code".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: Some(PatternConstraint::new("[A-Z]{3}-\\d{4}".to_string())),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("pattern_error_test.rs")).unwrap();
+
+    // Verify error includes the violating value
+    assert!(content.contains("value: value.clone()"));
+
+    // Verify error includes the pattern
+    assert!(content.contains(r#"pattern: "[A-Z]{3}-\d{4}".to_string()"#));
+
+    // Verify Display implementation shows both value and pattern
+    assert!(
+        content.contains(r#"write!(f, "Value '{}' does not match pattern: {}", value, pattern)"#)
+    );
+}
+
+#[test]
+fn test_combined_length_and_pattern_validation() {
+    use crate::parser::{
+        Container, DataNode, Leaf, LengthConstraint, LengthRange, PatternConstraint, TypeSpec,
+    };
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "combined_validation_test".to_string(),
+        enable_validation: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "username".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: Some(LengthConstraint::new(vec![LengthRange::new(3, 15)])),
+                    pattern: Some(PatternConstraint::new("[a-z][a-z0-9_]*".to_string())),
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let content = fs::read_to_string(output_dir.join("combined_validation_test.rs")).unwrap();
+
+    // Verify both length and pattern validation are present
+    assert!(content.contains("let length = value.len() as u64"));
+    assert!(content.contains("length >= 3 && length <= 15"));
+    assert!(content.contains("if !length_valid {"));
+    assert!(content.contains("return Err(ValidationError::InvalidLength {"));
+
+    assert!(content.contains("regex::Regex::new"));
+    assert!(content.contains("pattern.is_match(&value)"));
+    assert!(content.contains("if !pattern.is_match(&value) {"));
+    assert!(content.contains("return Err(ValidationError::InvalidPattern {"));
+
+    // Verify both validations happen in sequence (length first, then pattern)
+    let length_pos = content.find("let length = value.len()").unwrap();
+    let pattern_pos = content.find("regex::Regex::new").unwrap();
+    assert!(
+        length_pos < pattern_pos,
+        "Length validation should come before pattern validation"
+    );
+}
