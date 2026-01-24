@@ -65,10 +65,195 @@ impl CodeGenerator {
             content.push('\n');
         }
 
-        // Placeholder for actual type generation (will be implemented in later tasks)
-        content.push_str("// Type definitions will be generated here\n");
+        // Generate type definitions from data nodes
+        for data_node in &module.data_nodes {
+            content.push_str(&self.generate_data_node(data_node)?);
+            content.push('\n');
+        }
 
         Ok(content)
+    }
+
+    /// Generate code for a data node.
+    fn generate_data_node(&self, node: &crate::parser::DataNode) -> Result<String, GeneratorError> {
+        use crate::parser::DataNode;
+
+        match node {
+            DataNode::Container(container) => self.generate_container(container),
+            DataNode::List(_) => Ok(String::new()), // Will be implemented in task 8.3
+            DataNode::Leaf(_) => Ok(String::new()), // Leaves are handled as struct fields
+            DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
+            DataNode::Choice(_) => Ok(String::new()), // Will be implemented in task 8.4
+            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
+        }
+    }
+
+    /// Generate a Rust struct from a YANG container.
+    fn generate_container(
+        &self,
+        container: &crate::parser::Container,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        // Generate rustdoc comment from YANG description
+        if let Some(ref description) = container.description {
+            output.push_str(&self.generate_rustdoc(description));
+        }
+
+        // Generate derive attributes
+        output.push_str(&self.generate_derive_attributes());
+
+        // Generate struct definition
+        let type_name = naming::to_type_name(&container.name);
+        output.push_str(&format!("pub struct {} {{\n", type_name));
+
+        // Generate fields from child nodes
+        for child in &container.children {
+            output.push_str(&self.generate_struct_field(child)?);
+        }
+
+        output.push_str("}\n");
+
+        // Recursively generate types for nested containers
+        for child in &container.children {
+            if let crate::parser::DataNode::Container(nested) = child {
+                output.push('\n');
+                output.push_str(&self.generate_container(nested)?);
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Generate a struct field from a data node.
+    fn generate_struct_field(
+        &self,
+        node: &crate::parser::DataNode,
+    ) -> Result<String, GeneratorError> {
+        use crate::parser::DataNode;
+
+        match node {
+            DataNode::Leaf(leaf) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = leaf.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", leaf.name)];
+                if !leaf.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&leaf.name);
+                let field_type = self.generate_leaf_type(&leaf.type_spec, leaf.mandatory);
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::Container(container) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = container.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", container.name)];
+                if !container.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&container.name);
+                let type_name = naming::to_type_name(&container.name);
+                let field_type = if container.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::List(_) => Ok(String::new()), // Will be implemented in task 8.3
+            DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
+            DataNode::Choice(_) => Ok(String::new()), // Will be implemented in task 8.4
+            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
+        }
+    }
+
+    /// Generate a Rust type from a YANG leaf type specification.
+    fn generate_leaf_type(&self, type_spec: &crate::parser::TypeSpec, mandatory: bool) -> String {
+        use crate::parser::TypeSpec;
+
+        let base_type = match type_spec {
+            TypeSpec::Int8 { .. } => "i8",
+            TypeSpec::Int16 { .. } => "i16",
+            TypeSpec::Int32 { .. } => "i32",
+            TypeSpec::Int64 { .. } => "i64",
+            TypeSpec::Uint8 { .. } => "u8",
+            TypeSpec::Uint16 { .. } => "u16",
+            TypeSpec::Uint32 { .. } => "u32",
+            TypeSpec::Uint64 { .. } => "u64",
+            TypeSpec::String { .. } => "String",
+            TypeSpec::Boolean => "bool",
+            TypeSpec::Empty => "()",
+            TypeSpec::Binary { .. } => "Vec<u8>",
+            TypeSpec::Enumeration { .. } => "String", // Will be improved in later tasks
+            TypeSpec::Union { .. } => "String",       // Will be improved in later tasks
+            TypeSpec::LeafRef { .. } => "String",     // Will be improved in later tasks
+            TypeSpec::TypedefRef { name } => {
+                // Use the typedef name as the type
+                &naming::to_type_name(name)
+            }
+        };
+
+        if mandatory {
+            base_type.to_string()
+        } else {
+            format!("Option<{}>", base_type)
+        }
+    }
+
+    /// Generate rustdoc comments from a YANG description.
+    fn generate_rustdoc(&self, description: &str) -> String {
+        let mut rustdoc = String::new();
+
+        // Split description into lines and format as rustdoc comments
+        for line in description.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                rustdoc.push_str("///\n");
+            } else {
+                rustdoc.push_str(&format!("/// {}\n", trimmed));
+            }
+        }
+
+        rustdoc
+    }
+
+    /// Generate derive attributes based on configuration.
+    fn generate_derive_attributes(&self) -> String {
+        let mut derives = vec!["Serialize", "Deserialize"];
+
+        if self.config.derive_debug {
+            derives.insert(0, "Debug");
+        }
+
+        if self.config.derive_clone {
+            derives.insert(if self.config.derive_debug { 1 } else { 0 }, "Clone");
+        }
+
+        format!("#[derive({})]\n", derives.join(", "))
     }
 
     /// Generate file header comment with metadata.
@@ -155,3 +340,6 @@ pub struct GeneratedFile {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod integration_test;
