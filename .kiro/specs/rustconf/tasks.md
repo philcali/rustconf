@@ -289,13 +289,13 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Add proper error handling with Result types
     - _Requirements: 4.3, 4.4_
   
-  - [ ] 10.4 Generate URL path construction
+  - [x] 10.4 Generate URL path construction
     - Create functions to build RESTCONF URLs from data tree paths
     - Handle key encoding in URLs (percent-encoding)
     - Generate path helpers for each data node
     - _Requirements: 4.5_
   
-  - [ ] 10.5 Write unit tests for operation generation
+  - [x] 10.5 Write unit tests for operation generation
     - Test RPC function generation with input/output
     - Test notification type generation
     - Test CRUD operation generation
