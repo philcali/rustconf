@@ -963,6 +963,9 @@ impl CodeGenerator {
         output.push_str("    use super::*;\n");
         output.push('\n');
 
+        // Generate percent encoding helper function
+        output.push_str(&self.generate_percent_encode_helper());
+
         // Generate input/output types and functions for each RPC
         if !module.rpcs.is_empty() {
             for rpc in &module.rpcs {
@@ -1029,11 +1032,15 @@ impl CodeGenerator {
     fn generate_container_crud_operations(
         &self,
         container: &crate::parser::Container,
-        _module: &YangModule,
+        module: &YangModule,
     ) -> Result<String, GeneratorError> {
         let mut output = String::new();
         let type_name = naming::to_type_name(&container.name);
         let function_prefix = naming::to_field_name(&container.name);
+
+        // Generate path helper function
+        output.push_str(&self.generate_container_path_helper(container, module)?);
+        output.push('\n');
 
         // Generate GET operation (always available for containers)
         output.push_str(&format!(
@@ -1047,6 +1054,10 @@ impl CodeGenerator {
         output.push_str(&format!(
             "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
             function_prefix, type_name
+        ));
+        output.push_str(&format!(
+            "            let _path = {}_path();\n",
+            function_prefix
         ));
         output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
         output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
@@ -1067,6 +1078,10 @@ impl CodeGenerator {
                 "        pub async fn put_{}(data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, type_name
             ));
+            output.push_str(&format!(
+                "            let _path = {}_path();\n",
+                function_prefix
+            ));
             output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
             output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
             output.push_str("        }\n\n");
@@ -1083,6 +1098,10 @@ impl CodeGenerator {
             output.push_str(&format!(
                 "        pub async fn patch_{}(data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, type_name
+            ));
+            output.push_str(&format!(
+                "            let _path = {}_path();\n",
+                function_prefix
             ));
             output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
             output
@@ -1102,6 +1121,10 @@ impl CodeGenerator {
                 "        pub async fn delete_{}() -> Result<(), RpcError> {{\n",
                 function_prefix
             ));
+            output.push_str(&format!(
+                "            let _path = {}_path();\n",
+                function_prefix
+            ));
             output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
             output
                 .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
@@ -1115,7 +1138,7 @@ impl CodeGenerator {
     fn generate_list_crud_operations(
         &self,
         list: &crate::parser::List,
-        _module: &YangModule,
+        module: &YangModule,
     ) -> Result<String, GeneratorError> {
         let mut output = String::new();
         let type_name = naming::to_type_name(&list.name);
@@ -1128,6 +1151,10 @@ impl CodeGenerator {
             &type_name
         };
 
+        // Generate path helper functions
+        output.push_str(&self.generate_list_path_helpers(list, module)?);
+        output.push('\n');
+
         // Generate GET operation for entire list
         output.push_str(&format!("        /// Retrieve all {} items.\n", list.name));
         output.push_str("        ///\n");
@@ -1137,6 +1164,10 @@ impl CodeGenerator {
         output.push_str(&format!(
             "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
             function_prefix, type_name
+        ));
+        output.push_str(&format!(
+            "            let _path = {}_path();\n",
+            function_prefix
         ));
         output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
         output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
@@ -1158,6 +1189,11 @@ impl CodeGenerator {
             "        pub async fn get_{}_by_key({}) -> Result<{}, RpcError> {{\n",
             function_prefix, key_params, item_type_name
         ));
+        output.push_str(&format!(
+            "            let _path = {}_item_path({});\n",
+            function_prefix,
+            self.generate_key_param_names(list)
+        ));
         output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
         output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
         output.push_str("        }\n\n");
@@ -1173,6 +1209,10 @@ impl CodeGenerator {
             output.push_str(&format!(
                 "        pub async fn create_{}(data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, item_type_name
+            ));
+            output.push_str(&format!(
+                "            let _path = {}_path();\n",
+                function_prefix
             ));
             output.push_str("            // TODO: Implement POST request to RESTCONF server\n");
             output.push_str("            unimplemented!(\"POST operation not yet implemented\")\n");
@@ -1191,6 +1231,11 @@ impl CodeGenerator {
                 "        pub async fn put_{}({}, data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, key_params, item_type_name
             ));
+            output.push_str(&format!(
+                "            let _path = {}_item_path({});\n",
+                function_prefix,
+                self.generate_key_param_names(list)
+            ));
             output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
             output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
             output.push_str("        }\n\n");
@@ -1207,6 +1252,11 @@ impl CodeGenerator {
             output.push_str(&format!(
                 "        pub async fn patch_{}({}, data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, key_params, item_type_name
+            ));
+            output.push_str(&format!(
+                "            let _path = {}_item_path({});\n",
+                function_prefix,
+                self.generate_key_param_names(list)
             ));
             output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
             output
@@ -1225,6 +1275,11 @@ impl CodeGenerator {
             output.push_str(&format!(
                 "        pub async fn delete_{}({}) -> Result<(), RpcError> {{\n",
                 function_prefix, key_params
+            ));
+            output.push_str(&format!(
+                "            let _path = {}_item_path({});\n",
+                function_prefix,
+                self.generate_key_param_names(list)
             ));
             output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
             output
@@ -1264,6 +1319,139 @@ impl CodeGenerator {
 
         // Default to String if key type not found
         "String".to_string()
+    }
+
+    /// Generate key parameter names for list operations (comma-separated).
+    fn generate_key_param_names(&self, list: &crate::parser::List) -> String {
+        list.keys
+            .iter()
+            .map(|key| naming::to_field_name(key))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Generate path helper function for a container.
+    fn generate_container_path_helper(
+        &self,
+        container: &crate::parser::Container,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let function_name = format!("{}_path", naming::to_field_name(&container.name));
+
+        output.push_str(&format!(
+            "        /// Build the RESTCONF URL path for the {} container.\n",
+            container.name
+        ));
+        output.push_str("        #[allow(dead_code)]\n");
+        output.push_str(&format!("        fn {}() -> String {{\n", function_name));
+
+        // Build the path: /restconf/data/{module}:{container}
+        let path = if self.config.enable_namespace_prefixes {
+            format!("/restconf/data/{}:{}", module.prefix, container.name)
+        } else {
+            format!("/restconf/data/{}", container.name)
+        };
+
+        output.push_str(&format!("            \"{}\".to_string()\n", path));
+        output.push_str("        }\n");
+
+        Ok(output)
+    }
+
+    /// Generate path helper functions for a list (collection and item paths).
+    fn generate_list_path_helpers(
+        &self,
+        list: &crate::parser::List,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+        let function_prefix = naming::to_field_name(&list.name);
+
+        // Generate collection path helper (for entire list)
+        output.push_str(&format!(
+            "        /// Build the RESTCONF URL path for the {} collection.\n",
+            list.name
+        ));
+        output.push_str("        #[allow(dead_code)]\n");
+        output.push_str(&format!(
+            "        fn {}_path() -> String {{\n",
+            function_prefix
+        ));
+
+        let collection_path = if self.config.enable_namespace_prefixes {
+            format!("/restconf/data/{}:{}", module.prefix, list.name)
+        } else {
+            format!("/restconf/data/{}", list.name)
+        };
+
+        output.push_str(&format!(
+            "            \"{}\".to_string()\n",
+            collection_path
+        ));
+        output.push_str("        }\n\n");
+
+        // Generate item path helper (for specific list item by key)
+        let key_params = self.generate_list_key_params(list);
+
+        output.push_str(&format!(
+            "        /// Build the RESTCONF URL path for a specific {} item.\n",
+            list.name
+        ));
+        output.push_str("        ///\n");
+        output.push_str("        /// Keys are percent-encoded for URL safety.\n");
+        output.push_str("        #[allow(dead_code)]\n");
+        output.push_str(&format!(
+            "        fn {}_item_path({}) -> String {{\n",
+            function_prefix, key_params
+        ));
+
+        // Build the base path
+        let base_path = if self.config.enable_namespace_prefixes {
+            format!("/restconf/data/{}:{}", module.prefix, list.name)
+        } else {
+            format!("/restconf/data/{}", list.name)
+        };
+
+        output.push_str(&format!(
+            "            let mut path = \"{}\".to_string();\n",
+            base_path
+        ));
+
+        // Add key encoding for each key
+        for key in &list.keys {
+            let key_param = naming::to_field_name(key);
+            output.push_str(&format!(
+                "            path.push_str(&format!(\"={{}}=\", percent_encode(&{}.to_string())));\n",
+                key_param
+            ));
+        }
+
+        output.push_str("            path\n");
+        output.push_str("        }\n");
+
+        Ok(output)
+    }
+
+    /// Generate percent encoding helper function in the operations module.
+    fn generate_percent_encode_helper(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("    /// Percent-encode a string for use in URLs.\n");
+        output.push_str("    ///\n");
+        output
+            .push_str("    /// This function encodes special characters according to RFC 3986.\n");
+        output.push_str("    #[allow(dead_code)]\n");
+        output.push_str("    fn percent_encode(s: &str) -> String {\n");
+        output.push_str("        s.chars()\n");
+        output.push_str("            .map(|c| match c {\n");
+        output.push_str("                'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),\n");
+        output.push_str("                _ => format!(\"%{:02X}\", c as u8),\n");
+        output.push_str("            })\n");
+        output.push_str("            .collect()\n");
+        output.push_str("    }\n\n");
+
+        output
     }
 
     /// Generate input and output types for an RPC.
@@ -1502,3 +1690,9 @@ mod notification_integration_test;
 
 #[cfg(test)]
 mod crud_tests;
+
+#[cfg(test)]
+mod url_path_tests;
+
+#[cfg(test)]
+mod url_path_example_test;
