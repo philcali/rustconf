@@ -295,8 +295,7 @@ fn test_notification_without_description() {
 
 #[test]
 fn test_notification_with_namespace_prefixes() {
-    let mut config = GeneratorConfig::default();
-    config.enable_namespace_prefixes = true;
+    let config = GeneratorConfig { enable_namespace_prefixes: true, ..Default::default() };
     let generator = CodeGenerator::new(config);
 
     let module = YangModule {
