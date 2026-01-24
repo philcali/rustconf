@@ -83,7 +83,7 @@ impl CodeGenerator {
             DataNode::List(list) => self.generate_list(list),
             DataNode::Leaf(_) => Ok(String::new()), // Leaves are handled as struct fields
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(_) => Ok(String::new()), // Will be implemented in task 8.4
+            DataNode::Choice(choice) => self.generate_choice(choice),
             DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
             DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
         }
@@ -115,7 +115,7 @@ impl CodeGenerator {
 
         output.push_str("}\n");
 
-        // Recursively generate types for nested containers and lists
+        // Recursively generate types for nested containers, lists, and choices
         for child in &container.children {
             match child {
                 crate::parser::DataNode::Container(nested) => {
@@ -126,9 +126,126 @@ impl CodeGenerator {
                     output.push('\n');
                     output.push_str(&self.generate_list(nested)?);
                 }
+                crate::parser::DataNode::Choice(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_choice(nested)?);
+                }
                 _ => {}
             }
         }
+
+        Ok(output)
+    }
+
+    /// Generate a Rust enum from a YANG choice.
+    fn generate_choice(&self, choice: &crate::parser::Choice) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        // Generate rustdoc comment from YANG description
+        if let Some(ref description) = choice.description {
+            output.push_str(&self.generate_rustdoc(description));
+        }
+
+        // Generate derive attributes
+        output.push_str(&self.generate_derive_attributes());
+
+        // Add serde attribute for kebab-case serialization
+        output.push_str("#[serde(rename_all = \"kebab-case\")]\n");
+
+        // Generate enum definition
+        let type_name = naming::to_type_name(&choice.name);
+        output.push_str(&format!("pub enum {} {{\n", type_name));
+
+        // Generate variants from cases
+        for case in &choice.cases {
+            // Add rustdoc comment for case if description exists
+            if let Some(ref description) = case.description {
+                output.push_str(&format!("    {}", self.generate_rustdoc(description)));
+            }
+
+            let variant_name = naming::to_type_name(&case.name);
+
+            // Determine the variant type based on case contents
+            if case.data_nodes.is_empty() {
+                // Empty case - unit variant
+                output.push_str(&format!("    {},\n", variant_name));
+            } else if case.data_nodes.len() == 1 {
+                // Single data node - check if it's a leaf or complex type
+                match &case.data_nodes[0] {
+                    crate::parser::DataNode::Leaf(leaf) => {
+                        // Single leaf - use tuple variant with the leaf type
+                        let leaf_type = self.generate_leaf_type(&leaf.type_spec, true);
+                        output.push_str(&format!("    {}({}),\n", variant_name, leaf_type));
+                    }
+                    _ => {
+                        // Complex type - use named struct variant
+                        let case_type_name = format!("{}Data", variant_name);
+                        output.push_str(&format!("    {}({}),\n", variant_name, case_type_name));
+                    }
+                }
+            } else {
+                // Multiple data nodes - use named struct variant
+                let case_type_name = format!("{}Data", variant_name);
+                output.push_str(&format!("    {}({}),\n", variant_name, case_type_name));
+            }
+        }
+
+        output.push_str("}\n");
+
+        // Generate struct types for cases with multiple or complex data nodes
+        for case in &choice.cases {
+            if case.data_nodes.len() > 1
+                || (case.data_nodes.len() == 1
+                    && !matches!(case.data_nodes[0], crate::parser::DataNode::Leaf(_)))
+            {
+                output.push('\n');
+                output.push_str(&self.generate_case_struct(case)?);
+            }
+        }
+
+        // Recursively generate types for nested containers and lists within cases
+        for case in &choice.cases {
+            for node in &case.data_nodes {
+                match node {
+                    crate::parser::DataNode::Container(nested) => {
+                        output.push('\n');
+                        output.push_str(&self.generate_container(nested)?);
+                    }
+                    crate::parser::DataNode::List(nested) => {
+                        output.push('\n');
+                        output.push_str(&self.generate_list(nested)?);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Generate a struct for a case with multiple data nodes.
+    fn generate_case_struct(&self, case: &crate::parser::Case) -> Result<String, GeneratorError> {
+        let mut output = String::new();
+
+        // Generate rustdoc comment from case description
+        if let Some(ref description) = case.description {
+            output.push_str(&self.generate_rustdoc(description));
+        }
+
+        // Generate derive attributes
+        output.push_str(&self.generate_derive_attributes());
+
+        // Generate struct definition
+        let variant_name = naming::to_type_name(&case.name);
+        let struct_name = format!("{}Data", variant_name);
+        output.push_str(&format!("pub struct {} {{\n", struct_name));
+
+        // Generate fields from data nodes
+        for node in &case.data_nodes {
+            output.push_str(&self.generate_struct_field(node)?);
+        }
+
+        output.push_str("}\n");
 
         Ok(output)
     }
@@ -171,7 +288,7 @@ impl CodeGenerator {
             type_name, item_type_name
         ));
 
-        // Recursively generate types for nested containers and lists
+        // Recursively generate types for nested containers, lists, and choices
         for child in &list.children {
             match child {
                 crate::parser::DataNode::Container(nested) => {
@@ -181,6 +298,10 @@ impl CodeGenerator {
                 crate::parser::DataNode::List(nested) => {
                     output.push('\n');
                     output.push_str(&self.generate_list(nested)?);
+                }
+                crate::parser::DataNode::Choice(nested) => {
+                    output.push('\n');
+                    output.push_str(&self.generate_choice(nested)?);
                 }
                 _ => {}
             }
@@ -280,9 +401,35 @@ impl CodeGenerator {
                 Ok(field)
             }
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(_) => Ok(String::new()),   // Will be implemented in task 8.4
-            DataNode::Case(_) => Ok(String::new()),     // Cases are handled within choices
-            DataNode::Uses(_) => Ok(String::new()),     // Uses should be expanded during parsing
+            DataNode::Choice(choice) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = choice.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", choice.name)];
+                if !choice.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&choice.name);
+                let type_name = naming::to_type_name(&choice.name);
+                let field_type = if choice.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
         }
     }
 
@@ -363,9 +510,35 @@ impl CodeGenerator {
                 Ok(field)
             }
             DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(_) => Ok(String::new()),   // Will be implemented in task 8.4
-            DataNode::Case(_) => Ok(String::new()),     // Cases are handled within choices
-            DataNode::Uses(_) => Ok(String::new()),     // Uses should be expanded during parsing
+            DataNode::Choice(choice) => {
+                let mut field = String::new();
+
+                // Add rustdoc comment if description exists
+                if let Some(ref description) = choice.description {
+                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
+                }
+
+                // Build serde attributes
+                let mut serde_attrs = vec![format!("rename = \"{}\"", choice.name)];
+                if !choice.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
+
+                // Generate field name and type
+                let field_name = naming::to_field_name(&choice.name);
+                let type_name = naming::to_type_name(&choice.name);
+                let field_type = if choice.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
+
+                Ok(field)
+            }
+            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
+            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
         }
     }
 

@@ -1122,3 +1122,509 @@ fn test_list_key_field_always_non_optional() {
     assert!(content.contains("pub id: u32,"));
     assert!(!content.contains("pub id: Option<u32>"));
 }
+
+#[test]
+fn test_generate_simple_choice() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "address-type".to_string(),
+            description: Some("Address type selection".to_string()),
+            mandatory: false,
+            cases: vec![
+                Case {
+                    name: "ipv4".to_string(),
+                    description: Some("IPv4 address".to_string()),
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv4-address".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+                Case {
+                    name: "ipv6".to_string(),
+                    description: Some("IPv6 address".to_string()),
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv6-address".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check enum definition
+    assert!(content.contains("pub enum AddressType {"));
+
+    // Check rustdoc comment
+    assert!(content.contains("/// Address type selection"));
+
+    // Check derive attributes
+    assert!(content.contains("#[derive(Debug, Clone, Serialize, Deserialize)]"));
+
+    // Check serde rename_all attribute
+    assert!(content.contains("#[serde(rename_all = \"kebab-case\")]"));
+
+    // Check variants with tuple types (single leaf cases)
+    assert!(content.contains("Ipv4(String)"));
+    assert!(content.contains("Ipv6(String)"));
+
+    // Check case rustdoc comments
+    assert!(content.contains("/// IPv4 address"));
+    assert!(content.contains("/// IPv6 address"));
+}
+
+#[test]
+fn test_generate_choice_with_multiple_fields_per_case() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "transport".to_string(),
+            description: Some("Transport protocol".to_string()),
+            mandatory: true,
+            cases: vec![
+                Case {
+                    name: "tcp".to_string(),
+                    description: Some("TCP transport".to_string()),
+                    data_nodes: vec![
+                        DataNode::Leaf(Leaf {
+                            name: "tcp-port".to_string(),
+                            description: None,
+                            type_spec: TypeSpec::Uint16 { range: None },
+                            mandatory: true,
+                            default: None,
+                            config: true,
+                        }),
+                        DataNode::Leaf(Leaf {
+                            name: "tcp-timeout".to_string(),
+                            description: None,
+                            type_spec: TypeSpec::Uint32 { range: None },
+                            mandatory: false,
+                            default: None,
+                            config: true,
+                        }),
+                    ],
+                },
+                Case {
+                    name: "udp".to_string(),
+                    description: Some("UDP transport".to_string()),
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "udp-port".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::Uint16 { range: None },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check enum definition
+    assert!(content.contains("pub enum Transport {"));
+
+    // Check variants with struct types (multiple fields)
+    assert!(content.contains("Tcp(TcpData)"));
+    assert!(content.contains("Udp(u16)"));
+
+    // Check case struct definition for TCP
+    assert!(content.contains("pub struct TcpData {"));
+    assert!(content.contains("pub tcp_port: u16,"));
+    assert!(content.contains("pub tcp_timeout: Option<u32>,"));
+
+    // Check serde attributes
+    assert!(content.contains("#[serde(rename_all = \"kebab-case\")]"));
+}
+
+#[test]
+fn test_generate_choice_with_empty_case() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "mode".to_string(),
+            description: None,
+            mandatory: false,
+            cases: vec![
+                Case {
+                    name: "automatic".to_string(),
+                    description: Some("Automatic mode".to_string()),
+                    data_nodes: vec![],
+                },
+                Case {
+                    name: "manual".to_string(),
+                    description: Some("Manual mode".to_string()),
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "value".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::Uint32 { range: None },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check enum definition
+    assert!(content.contains("pub enum Mode {"));
+
+    // Check unit variant for empty case
+    assert!(content.contains("Automatic,"));
+
+    // Check tuple variant for single-field case
+    assert!(content.contains("Manual(u32)"));
+}
+
+#[test]
+fn test_generate_choice_with_nested_container() {
+    use crate::parser::{Case, Choice, Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "config-type".to_string(),
+            description: Some("Configuration type".to_string()),
+            mandatory: false,
+            cases: vec![Case {
+                name: "advanced".to_string(),
+                description: Some("Advanced configuration".to_string()),
+                data_nodes: vec![DataNode::Container(Container {
+                    name: "advanced-config".to_string(),
+                    description: Some("Advanced settings".to_string()),
+                    config: true,
+                    mandatory: true,
+                    children: vec![DataNode::Leaf(Leaf {
+                        name: "setting".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                })],
+            }],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check enum definition
+    assert!(content.contains("pub enum ConfigType {"));
+
+    // Check variant with struct type (complex nested type)
+    assert!(content.contains("Advanced(AdvancedData)"));
+
+    // Check case struct definition
+    assert!(content.contains("pub struct AdvancedData {"));
+    assert!(content.contains("pub advanced_config: AdvancedConfig,"));
+
+    // Check nested container struct
+    assert!(content.contains("pub struct AdvancedConfig {"));
+    assert!(content.contains("/// Advanced settings"));
+    assert!(content.contains("pub setting: String,"));
+}
+
+#[test]
+fn test_generate_choice_as_container_field() {
+    use crate::parser::{Case, Choice, Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Choice(Choice {
+                    name: "address-family".to_string(),
+                    description: Some("Address family selection".to_string()),
+                    mandatory: false,
+                    cases: vec![
+                        Case {
+                            name: "ipv4".to_string(),
+                            description: None,
+                            data_nodes: vec![DataNode::Leaf(Leaf {
+                                name: "ipv4-addr".to_string(),
+                                description: None,
+                                type_spec: TypeSpec::String {
+                                    length: None,
+                                    pattern: None,
+                                },
+                                mandatory: true,
+                                default: None,
+                                config: true,
+                            })],
+                        },
+                        Case {
+                            name: "ipv6".to_string(),
+                            description: None,
+                            data_nodes: vec![DataNode::Leaf(Leaf {
+                                name: "ipv6-addr".to_string(),
+                                description: None,
+                                type_spec: TypeSpec::String {
+                                    length: None,
+                                    pattern: None,
+                                },
+                                mandatory: true,
+                                default: None,
+                                config: true,
+                            })],
+                        },
+                    ],
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check container struct
+    assert!(content.contains("pub struct Interface {"));
+
+    // Check choice field in container (optional)
+    assert!(content.contains("pub address_family: Option<AddressFamily>,"));
+    assert!(content.contains("#[serde(rename = \"address-family\""));
+    assert!(content.contains("skip_serializing_if = \"Option::is_none\""));
+
+    // Check choice enum definition
+    assert!(content.contains("pub enum AddressFamily {"));
+    assert!(content.contains("#[serde(rename_all = \"kebab-case\")]"));
+    assert!(content.contains("Ipv4(String)"));
+    assert!(content.contains("Ipv6(String)"));
+}
+
+#[test]
+fn test_generate_mandatory_choice_as_container_field() {
+    use crate::parser::{Case, Choice, Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Choice(Choice {
+                name: "protocol".to_string(),
+                description: Some("Protocol selection".to_string()),
+                mandatory: true,
+                cases: vec![
+                    Case {
+                        name: "http".to_string(),
+                        description: None,
+                        data_nodes: vec![DataNode::Leaf(Leaf {
+                            name: "http-port".to_string(),
+                            description: None,
+                            type_spec: TypeSpec::Uint16 { range: None },
+                            mandatory: true,
+                            default: None,
+                            config: true,
+                        })],
+                    },
+                    Case {
+                        name: "https".to_string(),
+                        description: None,
+                        data_nodes: vec![DataNode::Leaf(Leaf {
+                            name: "https-port".to_string(),
+                            description: None,
+                            type_spec: TypeSpec::Uint16 { range: None },
+                            mandatory: true,
+                            default: None,
+                            config: true,
+                        })],
+                    },
+                ],
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check container struct
+    assert!(content.contains("pub struct Config {"));
+
+    // Check mandatory choice field (non-optional)
+    assert!(content.contains("pub protocol: Protocol,"));
+    assert!(!content.contains("pub protocol: Option<Protocol>"));
+
+    // Check choice enum definition
+    assert!(content.contains("pub enum Protocol {"));
+}
+
+#[test]
+fn test_generate_choice_with_nested_list() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "data-source".to_string(),
+            description: Some("Data source selection".to_string()),
+            mandatory: false,
+            cases: vec![Case {
+                name: "database".to_string(),
+                description: Some("Database source".to_string()),
+                data_nodes: vec![DataNode::List(List {
+                    name: "servers".to_string(),
+                    description: Some("Database servers".to_string()),
+                    config: true,
+                    keys: vec!["host".to_string()],
+                    children: vec![DataNode::Leaf(Leaf {
+                        name: "host".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                })],
+            }],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check enum definition
+    assert!(content.contains("pub enum DataSource {"));
+
+    // Check variant with struct type (complex nested type)
+    assert!(content.contains("Database(DatabaseData)"));
+
+    // Check case struct definition
+    assert!(content.contains("pub struct DatabaseData {"));
+    assert!(content.contains("pub servers: Servers,"));
+
+    // Check nested list struct
+    assert!(content.contains("pub struct Server {"));
+    assert!(content.contains("/// Database servers"));
+    assert!(content.contains("pub type Servers = Vec<Server>;"));
+}
