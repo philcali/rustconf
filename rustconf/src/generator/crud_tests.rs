@@ -49,11 +49,13 @@ fn test_generate_crud_for_config_container() {
     assert!(content.contains("/// Retrieve the system-config container"));
 
     // Check PUT operation (config = true)
-    assert!(content.contains("pub async fn put_system_config(data: SystemConfig) -> Result<(), RpcError>"));
+    assert!(content
+        .contains("pub async fn put_system_config(data: SystemConfig) -> Result<(), RpcError>"));
     assert!(content.contains("/// Replace the system-config container"));
 
     // Check PATCH operation (config = true)
-    assert!(content.contains("pub async fn patch_system_config(data: SystemConfig) -> Result<(), RpcError>"));
+    assert!(content
+        .contains("pub async fn patch_system_config(data: SystemConfig) -> Result<(), RpcError>"));
     assert!(content.contains("/// Partially update the system-config container"));
 
     // Check DELETE operation (config = true)
@@ -160,23 +162,33 @@ fn test_generate_crud_for_list_with_single_key() {
     assert!(content.contains("/// Retrieve all interfaces items"));
 
     // Check GET operation for single item by key
-    assert!(content.contains("pub async fn get_interfaces_by_key(name: String) -> Result<Interface, RpcError>"));
+    assert!(content.contains(
+        "pub async fn get_interfaces_by_key(name: String) -> Result<Interface, RpcError>"
+    ));
     assert!(content.contains("/// Retrieve a single interfaces item by key"));
 
     // Check POST operation (create)
-    assert!(content.contains("pub async fn create_interfaces(data: Interface) -> Result<(), RpcError>"));
+    assert!(
+        content.contains("pub async fn create_interfaces(data: Interface) -> Result<(), RpcError>")
+    );
     assert!(content.contains("/// Create a new interfaces item"));
 
     // Check PUT operation (replace by key)
-    assert!(content.contains("pub async fn put_interfaces(name: String, data: Interface) -> Result<(), RpcError>"));
+    assert!(content.contains(
+        "pub async fn put_interfaces(name: String, data: Interface) -> Result<(), RpcError>"
+    ));
     assert!(content.contains("/// Replace a interfaces item by key"));
 
     // Check PATCH operation (partial update by key)
-    assert!(content.contains("pub async fn patch_interfaces(name: String, data: Interface) -> Result<(), RpcError>"));
+    assert!(content.contains(
+        "pub async fn patch_interfaces(name: String, data: Interface) -> Result<(), RpcError>"
+    ));
     assert!(content.contains("/// Partially update a interfaces item by key"));
 
     // Check DELETE operation (remove by key)
-    assert!(content.contains("pub async fn delete_interfaces(name: String) -> Result<(), RpcError>"));
+    assert!(
+        content.contains("pub async fn delete_interfaces(name: String) -> Result<(), RpcError>")
+    );
     assert!(content.contains("/// Delete a interfaces item by key"));
 }
 
@@ -294,7 +306,8 @@ fn test_generate_crud_for_state_list() {
 
     // Check GET operations exist
     assert!(content.contains("pub async fn get_connections() -> Result<Connections, RpcError>"));
-    assert!(content.contains("pub async fn get_connections_by_key(id: u32) -> Result<Connection, RpcError>"));
+    assert!(content
+        .contains("pub async fn get_connections_by_key(id: u32) -> Result<Connection, RpcError>"));
 
     // Check that write operations are NOT generated (config = false)
     assert!(!content.contains("pub async fn create_connections"));

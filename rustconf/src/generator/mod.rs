@@ -1085,7 +1085,8 @@ impl CodeGenerator {
                 function_prefix, type_name
             ));
             output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
+            output
+                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
             output.push_str("        }\n\n");
 
             // DELETE operation - remove container
@@ -1102,7 +1103,8 @@ impl CodeGenerator {
                 function_prefix
             ));
             output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
+            output
+                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
             output.push_str("        }\n\n");
         }
 
@@ -1163,10 +1165,7 @@ impl CodeGenerator {
         // Generate config-based operations only if config is true
         if list.config {
             // POST operation - create new item
-            output.push_str(&format!(
-                "        /// Create a new {} item.\n",
-                list.name
-            ));
+            output.push_str(&format!("        /// Create a new {} item.\n", list.name));
             output.push_str("        ///\n");
             output.push_str("        /// # Errors\n");
             output.push_str("        ///\n");
@@ -1210,7 +1209,8 @@ impl CodeGenerator {
                 function_prefix, key_params, item_type_name
             ));
             output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
+            output
+                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
             output.push_str("        }\n\n");
 
             // DELETE operation - remove item by key
@@ -1227,7 +1227,8 @@ impl CodeGenerator {
                 function_prefix, key_params
             ));
             output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
+            output
+                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
             output.push_str("        }\n\n");
         }
 
