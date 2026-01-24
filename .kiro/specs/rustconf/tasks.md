@@ -207,13 +207,13 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Return ValidationError for constraint violations
     - _Requirements: 2.1, 2.5, 5.3_
   
-  - [ ] 8.6 Handle mandatory vs optional fields
+  - [x] 8.6 Handle mandatory vs optional fields
     - Generate non-Option types for mandatory nodes
     - Generate Option<T> types for optional nodes
     - Add #[serde(skip_serializing_if = "Option::is_none")] for optional fields
     - _Requirements: 2.6, 2.7_
   
-  - [ ] 8.7 Write unit tests for type generation
+  - [x] 8.7 Write unit tests for type generation
     - Test list generation with keys
     - Test choice/case enum generation
     - Test validated type generation with constraints
@@ -229,7 +229,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7**
 
 - [ ] 9. Implement serialization support
-  - [ ] 9.1 Generate serde attributes for JSON encoding
+  - [x] 9.1 Generate serde attributes for JSON encoding
     - Add #[serde(rename = "...")] attributes for YANG naming conventions
     - Configure serde for RESTCONF JSON compliance (RFC 8040)
     - Handle namespace prefixes in JSON field names

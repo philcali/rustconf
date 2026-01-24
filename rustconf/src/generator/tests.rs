@@ -2020,3 +2020,525 @@ fn test_validation_error_display_implementation() {
     // Check Error trait implementation
     assert!(content.contains("impl std::error::Error for ValidationError"));
 }
+
+// Tests for JSON serialization and RESTCONF compliance (Task 9.1)
+
+#[test]
+fn test_serde_rename_attribute_for_yang_names() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface-config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "interface-name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that serde rename attribute preserves YANG kebab-case naming
+    assert!(content.contains(r#"#[serde(rename = "interface-name")]"#));
+    // Check that Rust field uses snake_case
+    assert!(content.contains("pub interface_name: String"));
+}
+
+#[test]
+fn test_optional_field_skip_serializing_if_none() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "required-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "optional-field".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that mandatory field does NOT have skip_serializing_if
+    assert!(content.contains(r#"#[serde(rename = "required-field")]"#));
+    assert!(!content.contains(r#"#[serde(rename = "required-field", skip_serializing_if"#));
+
+    // Check that optional field HAS skip_serializing_if
+    assert!(content.contains(
+        r#"#[serde(rename = "optional-field", skip_serializing_if = "Option::is_none")]"#
+    ));
+    assert!(content.contains("pub optional_field: Option<String>"));
+}
+
+#[test]
+fn test_namespace_prefix_disabled_by_default() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: false,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test-module".to_string(),
+        namespace: "urn:test:module".to_string(),
+        prefix: "tm".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "field-name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that field name does NOT have namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "field-name")]"#));
+    assert!(!content.contains(r#"#[serde(rename = "tm:field-name")]"#));
+}
+
+#[test]
+fn test_namespace_prefix_enabled() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test-module".to_string(),
+        namespace: "urn:test:module".to_string(),
+        prefix: "tm".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "field-name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that field name HAS namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "tm:field-name")]"#));
+    assert!(content.contains("pub field_name: String"));
+}
+
+#[test]
+fn test_namespace_prefix_on_nested_containers() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "outer".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Container(Container {
+                name: "inner".to_string(),
+                description: None,
+                config: true,
+                mandatory: true,
+                children: vec![DataNode::Leaf(Leaf {
+                    name: "value".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Int32 { range: None },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                })],
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that nested container field has namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "t:inner")]"#));
+    // Check that leaf in nested container has namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "t:value")]"#));
+}
+
+#[test]
+fn test_namespace_prefix_on_list_fields() {
+    use crate::parser::{DataNode, Leaf, List, TypeSpec};
+
+    let config = GeneratorConfig {
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::List(List {
+            name: "interfaces".to_string(),
+            description: None,
+            config: true,
+            keys: vec!["name".to_string()],
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "enabled".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that list item fields have namespace prefix
+    assert!(content.contains(r#"#[serde(rename = "t:name")]"#));
+    assert!(content.contains(r#"#[serde(rename = "t:enabled")]"#));
+}
+
+#[test]
+fn test_choice_enum_kebab_case_serialization() {
+    use crate::parser::{Case, Choice, DataNode, Leaf, TypeSpec};
+
+    let config = GeneratorConfig::default();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Choice(Choice {
+            name: "address-type".to_string(),
+            description: None,
+            mandatory: false,
+            cases: vec![
+                Case {
+                    name: "ipv4-address".to_string(),
+                    description: None,
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv4".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+                Case {
+                    name: "ipv6-address".to_string(),
+                    description: None,
+                    data_nodes: vec![DataNode::Leaf(Leaf {
+                        name: "ipv6".to_string(),
+                        description: None,
+                        type_spec: TypeSpec::String {
+                            length: None,
+                            pattern: None,
+                        },
+                        mandatory: true,
+                        default: None,
+                        config: true,
+                    })],
+                },
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that choice enum has kebab-case serialization
+    assert!(content.contains(r#"#[serde(rename_all = "kebab-case")]"#));
+    assert!(content.contains("pub enum AddressType"));
+}
+
+#[test]
+fn test_generated_code_compiles_and_serializes() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+    use std::fs;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_serialization".to_string(),
+        enable_namespace_prefixes: false,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "config".to_string(),
+            description: Some("Test configuration".to_string()),
+            config: true,
+            mandatory: false,
+            children: vec![
+                DataNode::Leaf(Leaf {
+                    name: "device-name".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "enabled".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::Boolean,
+                    mandatory: true,
+                    default: None,
+                    config: true,
+                }),
+                DataNode::Leaf(Leaf {
+                    name: "description".to_string(),
+                    description: None,
+                    type_spec: TypeSpec::String {
+                        length: None,
+                        pattern: None,
+                    },
+                    mandatory: false,
+                    default: None,
+                    config: true,
+                }),
+            ],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let file_path = output_dir.join("test_serialization.rs");
+    let content = fs::read_to_string(&file_path).unwrap();
+
+    // Verify the generated code has proper serde attributes
+    assert!(content.contains(r#"#[serde(rename = "device-name")]"#));
+    assert!(content.contains(r#"#[serde(rename = "enabled")]"#));
+    assert!(content
+        .contains(r#"#[serde(rename = "description", skip_serializing_if = "Option::is_none")]"#));
+
+    // Verify struct definition
+    assert!(content.contains("pub struct Config"));
+    assert!(content.contains("pub device_name: String"));
+    assert!(content.contains("pub enabled: bool"));
+    assert!(content.contains("pub description: Option<String>"));
+}
+
+#[test]
+fn test_generated_code_with_namespace_prefix_compiles() {
+    use crate::parser::{Container, DataNode, Leaf, TypeSpec};
+    use std::fs;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let output_dir = temp_dir.path().join("generated");
+
+    let config = GeneratorConfig {
+        output_dir: output_dir.clone(),
+        module_name: "test_namespace".to_string(),
+        enable_namespace_prefixes: true,
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "interface-module".to_string(),
+        namespace: "urn:ietf:params:xml:ns:yang:interface".to_string(),
+        prefix: "if".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(Container {
+            name: "interface".to_string(),
+            description: None,
+            config: true,
+            mandatory: false,
+            children: vec![DataNode::Leaf(Leaf {
+                name: "name".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })],
+        })],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    generator.write_files(&generated).unwrap();
+
+    let file_path = output_dir.join("test_namespace.rs");
+    let content = fs::read_to_string(&file_path).unwrap();
+
+    // Verify the generated code has namespace-prefixed field names
+    assert!(content.contains(r#"#[serde(rename = "if:name")]"#));
+    assert!(content.contains("pub struct Interface"));
+    assert!(content.contains("pub name: String"));
+}
