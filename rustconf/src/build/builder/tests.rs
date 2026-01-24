@@ -113,7 +113,11 @@ module simple {
 
     // Check that output file was created (default module name is "yang_bindings")
     let generated_file = output_dir.join("yang_bindings.rs");
-    assert!(generated_file.exists(), "Generated file not found at {:?}", generated_file);
+    assert!(
+        generated_file.exists(),
+        "Generated file not found at {:?}",
+        generated_file
+    );
 
     // Check that the generated file contains expected content
     let content = fs::read_to_string(&generated_file).unwrap();

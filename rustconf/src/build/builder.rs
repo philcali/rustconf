@@ -109,22 +109,16 @@ impl RustconfBuilder {
 
         // Emit cargo:rerun-if-changed directives for all input files
         for yang_file in &self.yang_files {
-            println!(
-                "cargo:rerun-if-changed={}",
-                yang_file.to_string_lossy()
-            );
+            println!("cargo:rerun-if-changed={}", yang_file.to_string_lossy());
         }
 
         // Also emit directives for all loaded modules (imports)
-        for (_, module) in parser.get_all_loaded_modules() {
+        for module in parser.get_all_loaded_modules().values() {
             // Try to find the file path for this module
             for search_path in &self.search_paths {
                 let module_path = search_path.join(format!("{}.yang", module.name));
                 if module_path.exists() {
-                    println!(
-                        "cargo:rerun-if-changed={}",
-                        module_path.to_string_lossy()
-                    );
+                    println!("cargo:rerun-if-changed={}", module_path.to_string_lossy());
                 }
             }
         }
