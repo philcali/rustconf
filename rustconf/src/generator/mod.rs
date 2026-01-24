@@ -9,6 +9,7 @@ pub mod config;
 pub mod error;
 pub mod formatting;
 pub mod naming;
+pub mod validation;
 
 pub use config::GeneratorConfig;
 pub use error::GeneratorError;
@@ -63,6 +64,31 @@ impl CodeGenerator {
             ));
             content.push_str(&format!("//! Namespace: {}\n", module.namespace));
             content.push('\n');
+        }
+
+        // Generate ValidationError type if validation is enabled
+        if self.config.enable_validation {
+            content.push_str(&validation::generate_validation_error(
+                self.config.derive_debug,
+                self.config.derive_clone,
+            ));
+            content.push('\n');
+        }
+
+        // Collect all validated types needed
+        let validated_types = self.collect_validated_types(module);
+
+        // Generate validated type definitions
+        for (type_name, type_spec) in validated_types {
+            if let Some(validated_type) = validation::generate_validated_type(
+                &type_name,
+                &type_spec,
+                self.config.derive_debug,
+                self.config.derive_clone,
+            ) {
+                content.push_str(&validated_type);
+                content.push('\n');
+            }
         }
 
         // Generate type definitions from data nodes
@@ -546,6 +572,16 @@ impl CodeGenerator {
     fn generate_leaf_type(&self, type_spec: &crate::parser::TypeSpec, mandatory: bool) -> String {
         use crate::parser::TypeSpec;
 
+        // Check if we should generate a validated type
+        if self.config.enable_validation && self.needs_validation(type_spec) {
+            let validated_type_name = self.get_validated_type_name(type_spec);
+            if mandatory {
+                return validated_type_name;
+            } else {
+                return format!("Option<{}>", validated_type_name);
+            }
+        }
+
         let base_type = match type_spec {
             TypeSpec::Int8 { .. } => "i8",
             TypeSpec::Int16 { .. } => "i16",
@@ -572,6 +608,171 @@ impl CodeGenerator {
             base_type.to_string()
         } else {
             format!("Option<{}>", base_type)
+        }
+    }
+
+    /// Check if a type specification needs validation.
+    fn needs_validation(&self, type_spec: &crate::parser::TypeSpec) -> bool {
+        use crate::parser::TypeSpec;
+
+        match type_spec {
+            TypeSpec::Int8 { range } => range.is_some(),
+            TypeSpec::Int16 { range } => range.is_some(),
+            TypeSpec::Int32 { range } => range.is_some(),
+            TypeSpec::Int64 { range } => range.is_some(),
+            TypeSpec::Uint8 { range } => range.is_some(),
+            TypeSpec::Uint16 { range } => range.is_some(),
+            TypeSpec::Uint32 { range } => range.is_some(),
+            TypeSpec::Uint64 { range } => range.is_some(),
+            TypeSpec::String { length, pattern } => length.is_some() || pattern.is_some(),
+            TypeSpec::Binary { length } => length.is_some(),
+            _ => false,
+        }
+    }
+
+    /// Get the validated type name for a type specification.
+    fn get_validated_type_name(&self, type_spec: &crate::parser::TypeSpec) -> String {
+        use crate::parser::TypeSpec;
+
+        match type_spec {
+            TypeSpec::Int8 { range } if range.is_some() => {
+                format!("ValidatedInt8_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Int16 { range } if range.is_some() => {
+                format!("ValidatedInt16_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Int32 { range } if range.is_some() => {
+                format!("ValidatedInt32_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Int64 { range } if range.is_some() => {
+                format!("ValidatedInt64_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Uint8 { range } if range.is_some() => {
+                format!("ValidatedUint8_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Uint16 { range } if range.is_some() => {
+                format!("ValidatedUint16_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Uint32 { range } if range.is_some() => {
+                format!("ValidatedUint32_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Uint64 { range } if range.is_some() => {
+                format!("ValidatedUint64_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::String { length, pattern } if length.is_some() || pattern.is_some() => {
+                format!("ValidatedString_{}", self.constraint_hash(type_spec))
+            }
+            TypeSpec::Binary { length } if length.is_some() => {
+                format!("ValidatedBinary_{}", self.constraint_hash(type_spec))
+            }
+            _ => "Unknown".to_string(),
+        }
+    }
+
+    /// Generate a hash for constraint uniqueness.
+    fn constraint_hash(&self, type_spec: &crate::parser::TypeSpec) -> String {
+        use crate::parser::TypeSpec;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+
+        match type_spec {
+            TypeSpec::Int8 { range: Some(r) }
+            | TypeSpec::Int16 { range: Some(r) }
+            | TypeSpec::Int32 { range: Some(r) }
+            | TypeSpec::Int64 { range: Some(r) }
+            | TypeSpec::Uint8 { range: Some(r) }
+            | TypeSpec::Uint16 { range: Some(r) }
+            | TypeSpec::Uint32 { range: Some(r) }
+            | TypeSpec::Uint64 { range: Some(r) } => {
+                for range in &r.ranges {
+                    range.min.hash(&mut hasher);
+                    range.max.hash(&mut hasher);
+                }
+            }
+            TypeSpec::String { length, pattern } => {
+                if let Some(l) = length {
+                    for len in &l.lengths {
+                        len.min.hash(&mut hasher);
+                        len.max.hash(&mut hasher);
+                    }
+                }
+                if let Some(p) = pattern {
+                    p.pattern.hash(&mut hasher);
+                }
+            }
+            TypeSpec::Binary { length: Some(l) } => {
+                for len in &l.lengths {
+                    len.min.hash(&mut hasher);
+                    len.max.hash(&mut hasher);
+                }
+            }
+            _ => {}
+        }
+
+        format!("{:x}", hasher.finish())
+    }
+
+    /// Collect all validated types needed for the module.
+    fn collect_validated_types(
+        &self,
+        module: &YangModule,
+    ) -> Vec<(String, crate::parser::TypeSpec)> {
+        use std::collections::HashMap;
+
+        let mut types = HashMap::new();
+
+        if !self.config.enable_validation {
+            return Vec::new();
+        }
+
+        // Collect from data nodes
+        for node in &module.data_nodes {
+            self.collect_validated_types_from_node(node, &mut types);
+        }
+
+        types.into_iter().collect()
+    }
+
+    /// Recursively collect validated types from a data node.
+    fn collect_validated_types_from_node(
+        &self,
+        node: &crate::parser::DataNode,
+        types: &mut std::collections::HashMap<String, crate::parser::TypeSpec>,
+    ) {
+        use crate::parser::DataNode;
+
+        match node {
+            DataNode::Leaf(leaf) => {
+                if self.needs_validation(&leaf.type_spec) {
+                    let type_name = self.get_validated_type_name(&leaf.type_spec);
+                    types.insert(type_name, leaf.type_spec.clone());
+                }
+            }
+            DataNode::Container(container) => {
+                for child in &container.children {
+                    self.collect_validated_types_from_node(child, types);
+                }
+            }
+            DataNode::List(list) => {
+                for child in &list.children {
+                    self.collect_validated_types_from_node(child, types);
+                }
+            }
+            DataNode::Choice(choice) => {
+                for case in &choice.cases {
+                    for child in &case.data_nodes {
+                        self.collect_validated_types_from_node(child, types);
+                    }
+                }
+            }
+            DataNode::Case(case) => {
+                for child in &case.data_nodes {
+                    self.collect_validated_types_from_node(child, types);
+                }
+            }
+            _ => {}
         }
     }
 

@@ -200,7 +200,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Handle nested data nodes within cases
     - _Requirements: 2.4_
   
-  - [ ] 8.5 Generate validated types for constrained leaves
+  - [x] 8.5 Generate validated types for constrained leaves
     - Create newtype wrappers for range/pattern/length constraints
     - Implement validation in constructor methods (new, try_from)
     - Implement Serialize/Deserialize with validation
