@@ -310,11 +310,11 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Property 16: URL Path Generation**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
 
-- [ ] 11. Checkpoint - Ensure generator tests pass
+- [x] 11. Checkpoint - Ensure generator tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Implement build system integration
-  - [ ] 12.1 Implement RustconfBuilder::generate method
+  - [x] 12.1 Implement RustconfBuilder::generate method
     - Orchestrate parsing: create YangParser, add search paths, parse files
     - Orchestrate code generation: create CodeGenerator, generate code
     - Write generated files to output directory
