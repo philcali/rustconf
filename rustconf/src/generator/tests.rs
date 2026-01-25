@@ -177,8 +177,8 @@ fn test_generated_content_has_module_documentation() {
     let content = &generated.files[0].content;
 
     // Check for module documentation
-    assert!(content.contains("//! Generated Rust bindings for YANG module: interface-config"));
-    assert!(content.contains("//! Namespace: urn:ietf:params:xml:ns:yang:interface"));
+    assert!(content.contains("// Generated Rust bindings for YANG module: interface-config"));
+    assert!(content.contains("// Namespace: urn:ietf:params:xml:ns:yang:interface"));
 }
 
 #[test]
@@ -796,10 +796,6 @@ fn test_generate_simple_list() {
 
     // Check other fields
     assert!(content.contains("pub enabled: bool,"));
-
-    // Check Vec type alias
-    assert!(content.contains("pub type Interfaces = Vec<Interface>;"));
-    assert!(content.contains("/// Collection of Interface items."));
 }
 
 #[test]
@@ -873,9 +869,6 @@ fn test_generate_list_with_multiple_keys() {
 
     // Check non-key optional field
     assert!(content.contains("pub next_hop: Option<String>,"));
-
-    // Check Vec type alias
-    assert!(content.contains("pub type Routes = Vec<Route>;"));
 }
 
 #[test]
@@ -997,16 +990,13 @@ fn test_generate_list_as_container_field() {
     // Check container struct
     assert!(content.contains("pub struct System {"));
 
-    // Check list field in container
-    assert!(content.contains("pub users: Users,"));
+    // Check list field in container uses Vec
+    assert!(content.contains("pub users: Vec<User>,"));
     assert!(content.contains("#[serde(rename = \"users\")]"));
 
     // Check list item struct
     assert!(content.contains("pub struct User {"));
     assert!(content.contains("/// System users"));
-
-    // Check Vec type alias
-    assert!(content.contains("pub type Users = Vec<User>;"));
 }
 
 #[test]
@@ -1069,15 +1059,13 @@ fn test_generate_nested_list() {
 
     // Check parent list
     assert!(content.contains("pub struct Interface {"));
-    assert!(content.contains("pub type Interfaces = Vec<Interface>;"));
 
-    // Check nested list field
-    assert!(content.contains("pub addresses: Addresses,"));
+    // Check nested list field uses Vec
+    assert!(content.contains("pub addresses: Vec<Addresse>,"));
 
     // Check nested list struct
     assert!(content.contains("pub struct Addresse {"));
     assert!(content.contains("/// IP addresses"));
-    assert!(content.contains("pub type Addresses = Vec<Addresse>;"));
 }
 
 #[test]
@@ -1621,12 +1609,11 @@ fn test_generate_choice_with_nested_list() {
 
     // Check case struct definition
     assert!(content.contains("pub struct DatabaseData {"));
-    assert!(content.contains("pub servers: Servers,"));
+    assert!(content.contains("pub servers: Vec<Server>,"));
 
     // Check nested list struct
     assert!(content.contains("pub struct Server {"));
     assert!(content.contains("/// Database servers"));
-    assert!(content.contains("pub type Servers = Vec<Server>;"));
 }
 
 #[test]
@@ -1675,20 +1662,20 @@ fn test_generate_validated_int_with_range() {
     assert!(content.contains("OutOfRange"));
 
     // Check validated type is generated
-    assert!(content.contains("pub struct ValidatedUint16_"));
+    assert!(content.contains("pub struct ValidatedUint16Id"));
     assert!(content.contains("value: u16"));
     assert!(content.contains("pub fn new(value: u16) -> Result<Self, ValidationError>"));
     assert!(content.contains("pub fn value(&self) -> u16"));
 
     // Check TryFrom implementation
-    assert!(content.contains("impl TryFrom<u16> for ValidatedUint16_"));
+    assert!(content.contains("impl TryFrom<u16> for ValidatedUint16Id"));
 
     // Check Serialize/Deserialize implementations
-    assert!(content.contains("impl serde::Serialize for ValidatedUint16_"));
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+    assert!(content.contains("impl serde::Serialize for ValidatedUint16Id"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16Id"));
 
     // Check field uses validated type
-    assert!(content.contains("pub port: ValidatedUint16_"));
+    assert!(content.contains("pub port: ValidatedUint16Id"));
 }
 
 #[test]
@@ -1738,17 +1725,17 @@ fn test_generate_validated_string_with_length() {
     assert!(content.contains("InvalidLength"));
 
     // Check validated type is generated
-    assert!(content.contains("pub struct ValidatedString_"));
+    assert!(content.contains("pub struct ValidatedStringId"));
     assert!(content.contains("value: String"));
     assert!(content.contains("pub fn new(value: String) -> Result<Self, ValidationError>"));
     assert!(content.contains("pub fn value(&self) -> &str"));
 
     // Check length validation logic
     assert!(content.contains("let length = value.len() as u64"));
-    assert!(content.contains("length >= 3 && length <= 20"));
+    assert!(content.contains("(3..=20).contains(&length)"));
 
     // Check field uses validated type
-    assert!(content.contains("pub username: ValidatedString_"));
+    assert!(content.contains("pub username: ValidatedStringId"));
 }
 
 #[test]
@@ -1798,14 +1785,14 @@ fn test_generate_validated_string_with_pattern() {
     assert!(content.contains("InvalidPattern"));
 
     // Check validated type is generated
-    assert!(content.contains("pub struct ValidatedString_"));
+    assert!(content.contains("pub struct ValidatedStringId"));
 
     // Check pattern validation logic
     assert!(content.contains("regex::Regex::new"));
     assert!(content.contains("pattern.is_match"));
 
     // Check field uses validated type
-    assert!(content.contains("pub email: ValidatedString_"));
+    assert!(content.contains("pub email: ValidatedStringId"));
 }
 
 #[test]
@@ -1850,10 +1837,10 @@ fn test_generate_optional_validated_type() {
     let content = &generated.files[0].content;
 
     // Check validated type is generated
-    assert!(content.contains("pub struct ValidatedUint32_"));
+    assert!(content.contains("pub struct ValidatedUint32Id"));
 
     // Check field uses Option<ValidatedType>
-    assert!(content.contains("pub timeout: Option<ValidatedUint32_"));
+    assert!(content.contains("pub timeout: Option<ValidatedUint32Id"));
 }
 
 #[test]
@@ -1901,7 +1888,7 @@ fn test_validation_disabled_uses_base_types() {
     assert!(!content.contains("pub enum ValidationError"));
 
     // Check validated type is NOT generated
-    assert!(!content.contains("pub struct ValidatedUint16_"));
+    assert!(!content.contains("pub struct ValidatedUint16Id"));
 
     // Check field uses base type
     assert!(content.contains("pub port: u16,"));
@@ -1964,12 +1951,12 @@ fn test_generate_multiple_validated_types() {
     let content = &generated.files[0].content;
 
     // Check both validated types are generated
-    assert!(content.contains("pub struct ValidatedUint16_"));
-    assert!(content.contains("pub struct ValidatedString_"));
+    assert!(content.contains("pub struct ValidatedUint16Id"));
+    assert!(content.contains("pub struct ValidatedStringId"));
 
     // Check both fields use validated types
-    assert!(content.contains("pub port: ValidatedUint16_"));
-    assert!(content.contains("pub hostname: ValidatedString_"));
+    assert!(content.contains("pub port: ValidatedUint16Id"));
+    assert!(content.contains("pub hostname: ValidatedStringId"));
 }
 
 #[test]
@@ -3215,10 +3202,10 @@ fn test_deserialization_validation_works_for_range_constraints() {
     assert!(content.contains("pub fn new(value: u16) -> Result<Self, ValidationError>"));
 
     // 3. Validation logic
-    assert!(content.contains("value >= 1 && value <= 65535"));
+    assert!(content.contains("(1..=65535).contains(&value)"));
 
     // 4. Deserialize implementation that calls new()
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16Id"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
     // 5. Error includes value and constraint
@@ -3284,10 +3271,10 @@ fn test_deserialization_validation_works_for_length_constraints() {
 
     // 2. Length validation logic
     assert!(content.contains("let length = value.len() as u64"));
-    assert!(content.contains("length >= 3 && length <= 20"));
+    assert!(content.contains("(3..=20).contains(&length)"));
 
     // 3. Deserialize implementation
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedStringId"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
     // 4. Error includes value and constraint
@@ -3356,7 +3343,7 @@ fn test_deserialization_validation_works_for_pattern_constraints() {
     assert!(content.contains("pattern.is_match"));
 
     // 3. Deserialize implementation
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedStringId"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
     // 4. Error includes value and pattern
@@ -3485,12 +3472,12 @@ fn test_range_validation_deserialize_valid_data_succeeds() {
     let content = fs::read_to_string(output_dir.join("valid_range_test.rs")).unwrap();
 
     // Verify Deserialize implementation exists and calls validation
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16Id"));
     assert!(content.contains("let value = u16::deserialize(deserializer)?;"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
     // Verify validation logic accepts valid values
-    assert!(content.contains("value >= 1 && value <= 65535"));
+    assert!(content.contains("(1..=65535).contains(&value)"));
     assert!(content.contains("if valid {"));
     assert!(content.contains("Ok(Self { value })"));
 }
@@ -3667,13 +3654,13 @@ fn test_length_validation_deserialize_valid_data_succeeds() {
     let content = fs::read_to_string(output_dir.join("valid_length_test.rs")).unwrap();
 
     // Verify Deserialize implementation exists and calls validation
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedStringId"));
     assert!(content.contains("let value = String::deserialize(deserializer)?;"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
     // Verify length validation logic
     assert!(content.contains("let length = value.len() as u64"));
-    assert!(content.contains("length >= 3 && length <= 20"));
+    assert!(content.contains("(3..=20).contains(&length)"));
     assert!(content.contains("if !length_valid {"));
     assert!(content.contains("return Err(ValidationError::InvalidLength {"));
 }
@@ -3853,7 +3840,7 @@ fn test_pattern_validation_deserialize_valid_data_succeeds() {
     let content = fs::read_to_string(output_dir.join("valid_pattern_test.rs")).unwrap();
 
     // Verify Deserialize implementation exists and calls validation
-    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedString_"));
+    assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedStringId"));
     assert!(content.contains("let value = String::deserialize(deserializer)?;"));
     assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
@@ -4044,7 +4031,7 @@ fn test_combined_length_and_pattern_validation() {
 
     // Verify both length and pattern validation are present
     assert!(content.contains("let length = value.len() as u64"));
-    assert!(content.contains("length >= 3 && length <= 15"));
+    assert!(content.contains("(3..=15).contains(&length)"));
     assert!(content.contains("if !length_valid {"));
     assert!(content.contains("return Err(ValidationError::InvalidLength {"));
 

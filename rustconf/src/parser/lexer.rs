@@ -6,7 +6,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
-    character::complete::{char, multispace1, one_of},
+    character::complete::{char, multispace1},
     combinator::{map, recognize, value},
     multi::many0,
     sequence::{delimited, pair},
@@ -413,25 +413,28 @@ fn number(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse a string literal token (single or double quoted).
+/// Supports multi-line strings.
 fn string_literal(input: &str) -> IResult<&str, Token> {
     alt((
+        // Double-quoted strings (can span multiple lines)
         delimited(
             char('"'),
             map(
                 recognize(many0(alt((
                     take_while1(|c| c != '"' && c != '\\'),
-                    recognize(pair(char('\\'), one_of(r#""\/bfnrt"#))),
+                    recognize(pair(char('\\'), nom::character::complete::anychar)),
                 )))),
                 |s: &str| Token::StringLiteral(unescape_string(s)),
             ),
             char('"'),
         ),
+        // Single-quoted strings (can span multiple lines)
         delimited(
             char('\''),
             map(
                 recognize(many0(alt((
                     take_while1(|c| c != '\'' && c != '\\'),
-                    recognize(pair(char('\\'), one_of(r#"'\/bfnrt"#))),
+                    recognize(pair(char('\\'), nom::character::complete::anychar)),
                 )))),
                 |s: &str| Token::StringLiteral(unescape_string(s)),
             ),

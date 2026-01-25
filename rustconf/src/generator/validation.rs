@@ -145,7 +145,7 @@ fn generate_range_validated_type(
     let range_checks: Vec<String> = range
         .ranges
         .iter()
-        .map(|r| format!("(value >= {} && value <= {})", r.min, r.max))
+        .map(|r| format!("({}..={}).contains(&value)", r.min, r.max))
         .collect();
     output.push_str(&range_checks.join(" || "));
     output.push_str(";\n\n");
@@ -279,7 +279,7 @@ fn generate_string_validated_type(
         let length_checks: Vec<String> = len
             .lengths
             .iter()
-            .map(|l| format!("(length >= {} && length <= {})", l.min, l.max))
+            .map(|l| format!("({}..={}).contains(&length)", l.min, l.max))
             .collect();
         output.push_str(&length_checks.join(" || "));
         output.push_str(";\n\n");
@@ -417,7 +417,7 @@ fn generate_binary_validated_type(
     let length_checks: Vec<String> = length
         .lengths
         .iter()
-        .map(|l| format!("(length >= {} && length <= {})", l.min, l.max))
+        .map(|l| format!("({}..={}).contains(&length)", l.min, l.max))
         .collect();
     output.push_str(&length_checks.join(" || "));
     output.push_str(";\n\n");

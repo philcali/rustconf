@@ -1,0 +1,130 @@
+module interface-config {
+  yang-version 1.1;
+  namespace "http://example.com/yang/interface-config";
+  prefix "if";
+
+  container interfaces {
+    list interface {
+      key "name";
+
+      leaf name {
+        type string {
+          length "1..255";
+        }
+      }
+
+      leaf desc {
+        type string;
+      }
+
+      leaf interface-type {
+        type enumeration {
+          enum ethernet;
+          enum loopback;
+          enum tunnel;
+        }
+        mandatory true;
+      }
+
+      container configuration {
+        leaf enabled {
+          type boolean;
+          default true;
+        }
+
+        leaf mtu {
+          type uint16 {
+            range "68..9000";
+          }
+          default 1500;
+        }
+
+        choice address-type {
+          case ipv4 {
+            leaf ipv4-address {
+              type string;
+            }
+          }
+
+          case ipv6 {
+            leaf ipv6-address {
+              type string;
+            }
+          }
+        }
+
+        leaf speed {
+          type enumeration {
+            enum speed-10M;
+            enum speed-100M;
+            enum speed-1G;
+            enum speed-10G;
+            enum speed-40G;
+            enum speed-100G;
+          }
+        }
+
+        leaf duplex {
+          type enumeration {
+            enum half;
+            enum full;
+          }
+        }
+      }
+
+      container operational-state {
+        config false;
+
+        leaf admin-status {
+          type enumeration {
+            enum up;
+            enum down;
+            enum testing;
+          }
+          mandatory true;
+        }
+
+        leaf oper-status {
+          type enumeration {
+            enum up;
+            enum down;
+            enum testing;
+            enum unknown;
+            enum dormant;
+            enum not-present;
+            enum lower-layer-down;
+          }
+          mandatory true;
+        }
+
+        leaf last-change {
+          type uint32;
+        }
+
+        leaf in-octets {
+          type uint64;
+        }
+
+        leaf in-packets {
+          type uint64;
+        }
+
+        leaf in-errors {
+          type uint64;
+        }
+
+        leaf out-octets {
+          type uint64;
+        }
+
+        leaf out-packets {
+          type uint64;
+        }
+
+        leaf out-errors {
+          type uint64;
+        }
+      }
+    }
+  }
+}

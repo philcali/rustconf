@@ -783,6 +783,45 @@ impl ModuleParser {
         }
     }
 
+    /// Parse a string that may be concatenated with + operator (YANG 1.1 feature).
+    /// Handles: "string1" + "string2" + "string3" -> "string1string2string3"
+    fn parse_concatenated_string(&mut self) -> Result<String, ParseError> {
+        let mut result = String::new();
+
+        // Parse the first string
+        match self.advance() {
+            Token::StringLiteral(s) => result.push_str(&s),
+            token => return Err(self.error(format!("Expected string literal, found {:?}", token))),
+        }
+
+        // Check for concatenation with + operator
+        while self.peek() == &Token::Plus {
+            self.advance(); // consume the +
+
+            // Parse the next string
+            match self.advance() {
+                Token::StringLiteral(s) => result.push_str(&s),
+                token => {
+                    return Err(self.error(format!(
+                        "Expected string literal after +, found {:?}",
+                        token
+                    )))
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Parse a description statement: description <string> ;
+    /// Supports string concatenation with + operator.
+    fn parse_description_statement(&mut self) -> Result<String, ParseError> {
+        self.expect(Token::Description)?;
+        let description = self.parse_concatenated_string()?;
+        self.expect(Token::Semicolon)?;
+        Ok(description)
+    }
+
     /// Parse a complete YANG module.
     fn parse_module(&mut self) -> Result<YangModule, ParseError> {
         // Expect: module <identifier> { <statements> }
@@ -818,6 +857,14 @@ impl ModuleParser {
                 Token::Import => {
                     imports.push(self.parse_import()?);
                 }
+                Token::Organization
+                | Token::Contact
+                | Token::Description
+                | Token::Reference
+                | Token::Revision => {
+                    // Skip module metadata statements for now
+                    self.skip_statement()?;
+                }
                 Token::Typedef => {
                     typedefs.push(self.parse_typedef()?);
                 }
@@ -841,6 +888,10 @@ impl ModuleParser {
                 }
                 Token::Uses => {
                     data_nodes.push(DataNode::Uses(self.parse_uses()?));
+                }
+                Token::Rpc | Token::Notification | Token::Action => {
+                    // Skip RPC, notification, and action statements for now
+                    self.skip_statement()?;
                 }
                 _ => {
                     // Skip unknown statements for now
@@ -873,15 +924,41 @@ impl ModuleParser {
         })
     }
 
-    /// Parse yang-version statement: yang-version "1.0" | "1.1" ;
+    /// Parse yang-version statement: yang-version "1.0" | "1.1" | 1.0 | 1.1 ;
     fn parse_yang_version(&mut self) -> Result<YangVersion, ParseError> {
         self.expect(Token::YangVersion)?;
 
-        let version = match self.advance() {
-            Token::StringLiteral(s) if s == "1.0" => YangVersion::V1_0,
-            Token::StringLiteral(s) if s == "1.1" => YangVersion::V1_1,
-            Token::Number(1) => YangVersion::V1_0,
-            Token::Identifier(s) if s == "1" => YangVersion::V1_0,
+        let version = match self.peek() {
+            Token::StringLiteral(s) if s == "1.0" => {
+                self.advance();
+                YangVersion::V1_0
+            }
+            Token::StringLiteral(s) if s == "1.1" => {
+                self.advance();
+                YangVersion::V1_1
+            }
+            Token::Number(1) => {
+                self.advance();
+                // Check if followed by .0 or .1
+                if self.peek() == &Token::Dot {
+                    self.advance(); // consume the dot
+                    match self.advance() {
+                        Token::Number(0) => YangVersion::V1_0,
+                        Token::Number(1) => YangVersion::V1_1,
+                        token => {
+                            return Err(
+                                self.error(format!("Invalid yang-version value: 1.{:?}", token))
+                            )
+                        }
+                    }
+                } else {
+                    YangVersion::V1_0
+                }
+            }
+            Token::Identifier(s) if s == "1" => {
+                self.advance();
+                YangVersion::V1_0
+            }
             token => return Err(self.error(format!("Invalid yang-version value: {:?}", token))),
         };
 
@@ -893,25 +970,24 @@ impl ModuleParser {
     fn parse_namespace(&mut self) -> Result<String, ParseError> {
         self.expect(Token::Namespace)?;
 
-        let namespace = match self.advance() {
-            Token::StringLiteral(s) => s,
-            token => {
-                return Err(self.error(format!("Expected namespace string, found {:?}", token)))
-            }
-        };
+        let namespace = self.parse_concatenated_string()?;
 
         self.expect(Token::Semicolon)?;
         Ok(namespace)
     }
 
-    /// Parse prefix statement: prefix <identifier> ;
+    /// Parse prefix statement: prefix <identifier> | <string> ;
     fn parse_prefix(&mut self) -> Result<String, ParseError> {
         self.expect(Token::Prefix)?;
 
         let prefix = match self.advance() {
             Token::Identifier(id) => id,
+            Token::StringLiteral(s) => s,
             token => {
-                return Err(self.error(format!("Expected prefix identifier, found {:?}", token)))
+                return Err(self.error(format!(
+                    "Expected prefix identifier or string, found {:?}",
+                    token
+                )))
             }
         };
 
@@ -1020,15 +1096,7 @@ impl ModuleParser {
                     self.expect(Token::Semicolon)?;
                 }
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 _ => {
                     self.skip_statement()?;
@@ -1321,10 +1389,7 @@ impl ModuleParser {
     fn parse_pattern_constraint(&mut self) -> Result<PatternConstraint, ParseError> {
         self.expect(Token::Pattern)?;
 
-        let pattern = match self.advance() {
-            Token::StringLiteral(s) => s,
-            token => return Err(self.error(format!("Expected pattern string, found {:?}", token))),
-        };
+        let pattern = self.parse_concatenated_string()?;
 
         self.expect(Token::Semicolon)?;
 
@@ -1409,15 +1474,7 @@ impl ModuleParser {
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Container => {
                     data_nodes.push(DataNode::Container(self.parse_container()?));
@@ -1468,15 +1525,7 @@ impl ModuleParser {
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Config => {
                     self.advance();
@@ -1556,15 +1605,7 @@ impl ModuleParser {
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Config => {
                     self.advance();
@@ -1648,15 +1689,7 @@ impl ModuleParser {
                     type_spec = Some(self.parse_type_spec()?);
                 }
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Mandatory => {
                     self.advance();
@@ -1737,15 +1770,7 @@ impl ModuleParser {
                     type_spec = Some(self.parse_type_spec()?);
                 }
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Config => {
                     self.advance();
@@ -1797,15 +1822,7 @@ impl ModuleParser {
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Mandatory => {
                     self.advance();
@@ -1878,15 +1895,7 @@ impl ModuleParser {
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
                 Token::Description => {
-                    self.advance();
-                    description = Some(match self.advance() {
-                        Token::StringLiteral(s) => s,
-                        token => {
-                            return Err(self
-                                .error(format!("Expected description string, found {:?}", token)))
-                        }
-                    });
-                    self.expect(Token::Semicolon)?;
+                    description = Some(self.parse_description_statement()?);
                 }
                 Token::Container => {
                     data_nodes.push(DataNode::Container(self.parse_container()?));
