@@ -1,0 +1,344 @@
+module interface-config {
+  yang-version 1.1;
+  namespace "http://example.com/yang/interface-config";
+  prefix "if";
+
+  organization "Example Organization";
+  contact "support@example.com";
+  description
+    "This module defines a data model for network interface configuration
+     and state management. It demonstrates common YANG constructs including
+     containers, lists, leaves with constraints, choices, and RPCs.";
+
+  revision 2024-01-25 {
+    description "Initial revision demonstrating rustconf capabilities";
+  }
+
+  // Type definitions
+  typedef interface-name {
+    type string {
+      length "1..255";
+      pattern "[a-zA-Z0-9_-]+";
+    }
+    description "A valid interface name";
+  }
+
+  typedef mtu-type {
+    type uint16 {
+      range "68..9000";
+    }
+    description "Maximum Transmission Unit size in bytes";
+  }
+
+  typedef counter64 {
+    type uint64;
+    description "A 64-bit counter";
+  }
+
+  // Groupings
+  grouping interface-statistics {
+    description "Common interface statistics";
+    
+    leaf in-octets {
+      type counter64;
+      description "Number of octets received";
+    }
+
+    leaf in-packets {
+      type counter64;
+      description "Number of packets received";
+    }
+
+    leaf in-errors {
+      type counter64;
+      description "Number of inbound packets with errors";
+    }
+
+    leaf out-octets {
+      type counter64;
+      description "Number of octets transmitted";
+    }
+
+    leaf out-packets {
+      type counter64;
+      description "Number of packets transmitted";
+    }
+
+    leaf out-errors {
+      type counter64;
+      description "Number of outbound packets with errors";
+    }
+  }
+
+  // Main data model
+  container interfaces {
+    description "Top-level container for all network interfaces";
+
+    list interface {
+      key "name";
+      description "List of network interfaces on the device";
+
+      leaf name {
+        type interface-name;
+        description "The name of the interface";
+      }
+
+      leaf description {
+        type string;
+        description "A textual description of the interface";
+      }
+
+      leaf type {
+        type enumeration {
+          enum ethernet {
+            description "Ethernet interface";
+          }
+          enum loopback {
+            description "Loopback interface";
+          }
+          enum tunnel {
+            description "Tunnel interface";
+          }
+        }
+        mandatory true;
+        description "The type of the interface";
+      }
+
+      // Configuration container
+      container config {
+        description "Configuration parameters for the interface";
+
+        leaf enabled {
+          type boolean;
+          default true;
+          description "Enable or disable the interface";
+        }
+
+        leaf mtu {
+          type mtu-type;
+          default 1500;
+          description "Maximum Transmission Unit size";
+        }
+
+        // Choice for address configuration
+        choice address-type {
+          description "IP address configuration type";
+          
+          case ipv4 {
+            leaf ipv4-address {
+              type string {
+                pattern
+                  '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}'
+                + '([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])'
+                + '/(([0-9])|([1-2][0-9])|(3[0-2]))';
+              }
+              description "IPv4 address in CIDR notation";
+            }
+          }
+
+          case ipv6 {
+            leaf ipv6-address {
+              type string {
+                pattern
+                  '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}'
+                + '((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|'
+                + '(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}'
+                + '(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))'
+                + '(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+              }
+              description "IPv6 address in CIDR notation";
+            }
+          }
+        }
+
+        leaf speed {
+          type enumeration {
+            enum 10M {
+              description "10 Megabits per second";
+            }
+            enum 100M {
+              description "100 Megabits per second";
+            }
+            enum 1G {
+              description "1 Gigabit per second";
+            }
+            enum 10G {
+              description "10 Gigabits per second";
+            }
+            enum 40G {
+              description "40 Gigabits per second";
+            }
+            enum 100G {
+              description "100 Gigabits per second";
+            }
+          }
+          description "Interface speed";
+        }
+
+        leaf duplex {
+          type enumeration {
+            enum half {
+              description "Half duplex mode";
+            }
+            enum full {
+              description "Full duplex mode";
+            }
+          }
+          description "Duplex mode";
+        }
+      }
+
+      // State container (read-only operational data)
+      container state {
+        config false;
+        description "Operational state data for the interface";
+
+        leaf admin-status {
+          type enumeration {
+            enum up {
+              description "Interface is administratively up";
+            }
+            enum down {
+              description "Interface is administratively down";
+            }
+            enum testing {
+              description "Interface is in testing mode";
+            }
+          }
+          mandatory true;
+          description "Administrative status of the interface";
+        }
+
+        leaf oper-status {
+          type enumeration {
+            enum up {
+              description "Interface is operationally up";
+            }
+            enum down {
+              description "Interface is operationally down";
+            }
+            enum testing {
+              description "Interface is in testing mode";
+            }
+            enum unknown {
+              description "Interface status is unknown";
+            }
+            enum dormant {
+              description "Interface is dormant";
+            }
+            enum not-present {
+              description "Interface hardware is not present";
+            }
+            enum lower-layer-down {
+              description "Lower layer interface is down";
+            }
+          }
+          mandatory true;
+          description "Operational status of the interface";
+        }
+
+        leaf last-change {
+          type uint32;
+          description "Time since last operational status change (seconds)";
+        }
+
+        uses interface-statistics;
+      }
+    }
+  }
+
+  // RPC operations
+  rpc reset-interface {
+    description "Reset an interface, clearing its statistics and state";
+    
+    input {
+      leaf interface-name {
+        type interface-name;
+        mandatory true;
+        description "Name of the interface to reset";
+      }
+
+      leaf reset-statistics {
+        type boolean;
+        default true;
+        description "Whether to reset statistics counters";
+      }
+    }
+
+    output {
+      leaf success {
+        type boolean;
+        mandatory true;
+        description "Whether the reset operation succeeded";
+      }
+
+      leaf message {
+        type string;
+        description "Status message describing the result";
+      }
+    }
+  }
+
+  rpc get-statistics {
+    description "Retrieve detailed statistics for an interface";
+    
+    input {
+      leaf interface-name {
+        type interface-name;
+        mandatory true;
+        description "Name of the interface to query";
+      }
+
+      leaf clear-on-read {
+        type boolean;
+        default false;
+        description "Clear statistics after reading";
+      }
+    }
+
+    output {
+      uses interface-statistics;
+
+      leaf collection-time {
+        type uint64;
+        mandatory true;
+        description "Timestamp when statistics were collected (Unix epoch)";
+      }
+    }
+  }
+
+  // Notifications
+  notification interface-state-change {
+    description "Notification sent when an interface changes state";
+
+    leaf interface-name {
+      type interface-name;
+      mandatory true;
+      description "Name of the interface that changed state";
+    }
+
+    leaf old-status {
+      type enumeration {
+        enum up;
+        enum down;
+        enum testing;
+      }
+      description "Previous operational status";
+    }
+
+    leaf new-status {
+      type enumeration {
+        enum up;
+        enum down;
+        enum testing;
+      }
+      mandatory true;
+      description "New operational status";
+    }
+
+    leaf reason {
+      type string;
+      description "Reason for the state change";
+    }
+  }
+}

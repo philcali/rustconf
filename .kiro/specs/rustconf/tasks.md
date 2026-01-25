@@ -351,7 +351,7 @@ This implementation plan breaks down the rustconf library into incremental codin
     - **Validates: Requirements 3.4, 3.5, 9.3, 9.4, 9.5**
 
 - [ ] 13. Create example module
-  - [ ] 13.1 Create example YANG specification
+  - [x] 13.1 Create example YANG specification
     - Write interface-config.yang demonstrating common constructs
     - Include containers (interface, config, state)
     - Include lists (interfaces with name key)
@@ -361,14 +361,14 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Use realistic networking domain
     - _Requirements: 6.2_
   
-  - [ ] 13.2 Create example build.rs
+  - [x] 13.2 Create example build.rs
     - Demonstrate RustconfBuilder usage with interface-config.yang
     - Show configuration options (search_path, output_dir, enable_validation)
     - Include proper error handling
     - Emit cargo directives
     - _Requirements: 6.1, 6.3_
   
-  - [ ] 13.3 Create example application code
+  - [x] 13.3 Create example application code
     - Demonstrate using generated types (Interface, InterfaceConfig)
     - Show serialization/deserialization with serde_json
     - Show RESTCONF operation usage (if implemented)
