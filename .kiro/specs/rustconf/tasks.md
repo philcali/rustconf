@@ -321,20 +321,20 @@ This implementation plan breaks down the rustconf library into incremental codin
     - Emit cargo:rerun-if-changed directives for all input files
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 9.1, 9.2_
   
-  - [ ] 12.2 Implement configuration validation
+  - [x] 12.2 Implement configuration validation
     - Validate required fields are present (at least one YANG file)
     - Check paths exist and are accessible
     - Detect conflicting options
     - Return ConfigurationError with descriptive messages
     - _Requirements: 9.5_
   
-  - [ ] 12.3 Implement error handling and reporting
+  - [x] 12.3 Implement error handling and reporting
     - Convert ParseError and GeneratorError to BuildError
     - Report errors through cargo build script protocol (println!)
     - Provide actionable error messages with file paths and line numbers
     - _Requirements: 3.5, 7.1, 7.2, 7.3_
   
-  - [ ] 12.4 Write unit tests for build integration
+  - [x] 12.4 Write unit tests for build integration
     - Test successful generation with valid YANG files
     - Test error handling for missing files
     - Test error handling for invalid YANG syntax
