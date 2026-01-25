@@ -50,12 +50,12 @@ fn test_generate_crud_for_config_container() {
 
     // Check PUT operation (config = true)
     assert!(content
-        .contains("pub async fn put_system_config(data: SystemConfig) -> Result<(), RpcError>"));
+        .contains("pub async fn put_system_config(_data: SystemConfig) -> Result<(), RpcError>"));
     assert!(content.contains("/// Replace the system-config container"));
 
     // Check PATCH operation (config = true)
     assert!(content
-        .contains("pub async fn patch_system_config(data: SystemConfig) -> Result<(), RpcError>"));
+        .contains("pub async fn patch_system_config(_data: SystemConfig) -> Result<(), RpcError>"));
     assert!(content.contains("/// Partially update the system-config container"));
 
     // Check DELETE operation (config = true)
@@ -158,7 +158,7 @@ fn test_generate_crud_for_list_with_single_key() {
     let content = &generated.files[0].content;
 
     // Check GET operation for entire list
-    assert!(content.contains("pub async fn get_interfaces() -> Result<Interfaces, RpcError>"));
+    assert!(content.contains("pub async fn get_interfaces() -> Result<Vec<Interface>, RpcError>"));
     assert!(content.contains("/// Retrieve all interfaces items"));
 
     // Check GET operation for single item by key
@@ -168,20 +168,19 @@ fn test_generate_crud_for_list_with_single_key() {
     assert!(content.contains("/// Retrieve a single interfaces item by key"));
 
     // Check POST operation (create)
-    assert!(
-        content.contains("pub async fn create_interfaces(data: Interface) -> Result<(), RpcError>")
-    );
+    assert!(content
+        .contains("pub async fn create_interfaces(_data: Interface) -> Result<(), RpcError>"));
     assert!(content.contains("/// Create a new interfaces item"));
 
     // Check PUT operation (replace by key)
     assert!(content.contains(
-        "pub async fn put_interfaces(name: String, data: Interface) -> Result<(), RpcError>"
+        "pub async fn put_interfaces(name: String, _data: Interface) -> Result<(), RpcError>"
     ));
     assert!(content.contains("/// Replace a interfaces item by key"));
 
     // Check PATCH operation (partial update by key)
     assert!(content.contains(
-        "pub async fn patch_interfaces(name: String, data: Interface) -> Result<(), RpcError>"
+        "pub async fn patch_interfaces(name: String, _data: Interface) -> Result<(), RpcError>"
     ));
     assert!(content.contains("/// Partially update a interfaces item by key"));
 
@@ -252,8 +251,8 @@ fn test_generate_crud_for_list_with_multiple_keys() {
 
     // Check that operations include both key parameters
     assert!(content.contains("pub async fn get_routes_by_key(destination: String, prefix_length: u8) -> Result<Route, RpcError>"));
-    assert!(content.contains("pub async fn put_routes(destination: String, prefix_length: u8, data: Route) -> Result<(), RpcError>"));
-    assert!(content.contains("pub async fn patch_routes(destination: String, prefix_length: u8, data: Route) -> Result<(), RpcError>"));
+    assert!(content.contains("pub async fn put_routes(destination: String, prefix_length: u8, _data: Route) -> Result<(), RpcError>"));
+    assert!(content.contains("pub async fn patch_routes(destination: String, prefix_length: u8, _data: Route) -> Result<(), RpcError>"));
     assert!(content.contains("pub async fn delete_routes(destination: String, prefix_length: u8) -> Result<(), RpcError>"));
 }
 
@@ -305,7 +304,7 @@ fn test_generate_crud_for_state_list() {
     let content = &generated.files[0].content;
 
     // Check GET operations exist
-    assert!(content.contains("pub async fn get_connections() -> Result<Connections, RpcError>"));
+    assert!(content.contains("pub async fn get_connections() -> Result<Vec<Connection>, RpcError>"));
     assert!(content
         .contains("pub async fn get_connections_by_key(id: u32) -> Result<Connection, RpcError>"));
 
@@ -371,15 +370,15 @@ fn test_generate_crud_for_multiple_data_nodes() {
 
     // Check operations for config container
     assert!(content.contains("pub async fn get_config() -> Result<Config, RpcError>"));
-    assert!(content.contains("pub async fn put_config(data: Config) -> Result<(), RpcError>"));
+    assert!(content.contains("pub async fn put_config(_data: Config) -> Result<(), RpcError>"));
 
     // Check operations for state container (read-only)
     assert!(content.contains("pub async fn get_state() -> Result<State, RpcError>"));
     assert!(!content.contains("pub async fn put_state"));
 
     // Check operations for users list
-    assert!(content.contains("pub async fn get_users() -> Result<Users, RpcError>"));
-    assert!(content.contains("pub async fn create_users(data: User) -> Result<(), RpcError>"));
+    assert!(content.contains("pub async fn get_users() -> Result<Vec<User>, RpcError>"));
+    assert!(content.contains("pub async fn create_users(_data: User) -> Result<(), RpcError>"));
 }
 
 #[test]

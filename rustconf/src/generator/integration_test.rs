@@ -288,18 +288,18 @@ mod tests {
         assert!(content.contains("constraint: String"));
 
         // Verify validated types are generated
-        assert!(content.contains("pub struct ValidatedUint16_"));
-        assert!(content.contains("pub struct ValidatedUint32_"));
+        assert!(content.contains("pub struct ValidatedUint16Id"));
+        assert!(content.contains("pub struct ValidatedUint32Id"));
 
         // Verify validation logic is present
         assert!(content.contains("pub fn new(value: u16) -> Result<Self, ValidationError>"));
         assert!(content.contains("pub fn new(value: u32) -> Result<Self, ValidationError>"));
-        assert!(content.contains("value >= 1 && value <= 65535"));
-        assert!(content.contains("value >= 1 && value <= 3600"));
+        assert!(content.contains("(1..=65535).contains(&value)"));
+        assert!(content.contains("(1..=3600).contains(&value)"));
 
         // Verify Deserialize implementations with validation
-        assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16_"));
-        assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint32_"));
+        assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint16Id"));
+        assert!(content.contains("impl<'de> serde::Deserialize<'de> for ValidatedUint32Id"));
         assert!(content.contains("Self::new(value).map_err(serde::de::Error::custom)"));
 
         // Verify error messages include value and constraint

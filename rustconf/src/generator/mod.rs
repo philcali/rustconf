@@ -59,10 +59,10 @@ impl CodeGenerator {
         // Add module documentation
         if !module.namespace.is_empty() {
             content.push_str(&format!(
-                "//! Generated Rust bindings for YANG module: {}\n",
+                "// Generated Rust bindings for YANG module: {}\n",
                 module.name
             ));
-            content.push_str(&format!("//! Namespace: {}\n", module.namespace));
+            content.push_str(&format!("// Namespace: {}\n", module.namespace));
             content.push('\n');
         }
 
@@ -72,12 +72,6 @@ impl CodeGenerator {
                 self.config.derive_debug,
                 self.config.derive_clone,
             ));
-            content.push('\n');
-        }
-
-        // Generate RpcError type if there are RPCs
-        if !module.rpcs.is_empty() {
-            content.push_str(&self.generate_rpc_error());
             content.push('\n');
         }
 
@@ -105,6 +99,8 @@ impl CodeGenerator {
 
         // Generate RPC operations and CRUD operations
         if !module.rpcs.is_empty() || !module.data_nodes.is_empty() {
+            content.push_str(&self.generate_rpc_error());
+            content.push('\n');
             content.push_str(&self.generate_operations_module(module)?);
             content.push('\n');
         }
@@ -159,7 +155,7 @@ impl CodeGenerator {
 
         // Generate fields from child nodes
         for child in &container.children {
-            output.push_str(&self.generate_struct_field(child, module)?);
+            output.push_str(&self.generate_field(child, module, None)?);
         }
 
         output.push_str("}\n");
@@ -299,7 +295,7 @@ impl CodeGenerator {
 
         // Generate fields from data nodes
         for node in &case.data_nodes {
-            output.push_str(&self.generate_struct_field(node, module)?);
+            output.push_str(&self.generate_field(node, module, None)?);
         }
 
         output.push_str("}\n");
@@ -337,17 +333,10 @@ impl CodeGenerator {
         // Generate fields from child nodes
         // Key fields must be non-optional
         for child in &list.children {
-            output.push_str(&self.generate_list_field(child, &list.keys, module)?);
+            output.push_str(&self.generate_field(child, module, Some(&list.keys))?);
         }
 
         output.push_str("}\n\n");
-
-        // Generate Vec type alias for the collection
-        output.push_str(&format!("/// Collection of {} items.\n", item_type_name));
-        output.push_str(&format!(
-            "pub type {} = Vec<{}>;\n",
-            type_name, item_type_name
-        ));
 
         // Recursively generate types for nested containers, lists, and choices
         for child in &list.children {
@@ -371,13 +360,13 @@ impl CodeGenerator {
         Ok(output)
     }
 
-    /// Generate a struct field from a data node within a list.
-    /// Key fields are always mandatory (non-optional).
-    fn generate_list_field(
+    /// Generate a struct field from a data node.
+    /// When keys are provided, key fields are forced to be mandatory (non-optional).
+    fn generate_field(
         &self,
         node: &crate::parser::DataNode,
-        keys: &[String],
         module: &YangModule,
+        keys: Option<&[String]>,
     ) -> Result<String, GeneratorError> {
         use crate::parser::DataNode;
 
@@ -391,7 +380,7 @@ impl CodeGenerator {
                 }
 
                 // Check if this leaf is a key field
-                let is_key = keys.contains(&leaf.name);
+                let is_key = keys.is_some_and(|k| k.contains(&leaf.name));
 
                 // Build serde attributes
                 let field_name_json = self.get_json_field_name(&leaf.name, module);
@@ -442,120 +431,6 @@ impl CodeGenerator {
 
                 Ok(field)
             }
-            DataNode::List(nested_list) => {
-                let mut field = String::new();
-
-                // Add rustdoc comment if description exists
-                if let Some(ref description) = nested_list.description {
-                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
-                }
-
-                // Build serde attributes
-                let field_name_json = self.get_json_field_name(&nested_list.name, module);
-                field.push_str(&format!("    #[serde(rename = \"{}\")]\n", field_name_json));
-
-                // Generate field name and type
-                let field_name = naming::to_field_name(&nested_list.name);
-                let type_name = naming::to_type_name(&nested_list.name);
-                // Lists are always collections (Vec)
-                field.push_str(&format!("    pub {}: {},\n", field_name, type_name));
-
-                Ok(field)
-            }
-            DataNode::LeafList(_) => Ok(String::new()), // Will be implemented later
-            DataNode::Choice(choice) => {
-                let mut field = String::new();
-
-                // Add rustdoc comment if description exists
-                if let Some(ref description) = choice.description {
-                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
-                }
-
-                // Build serde attributes
-                let field_name_json = self.get_json_field_name(&choice.name, module);
-                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
-                if !choice.mandatory {
-                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
-                }
-                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
-
-                // Generate field name and type
-                let field_name = naming::to_field_name(&choice.name);
-                let type_name = naming::to_type_name(&choice.name);
-                let field_type = if choice.mandatory {
-                    type_name
-                } else {
-                    format!("Option<{}>", type_name)
-                };
-                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
-
-                Ok(field)
-            }
-            DataNode::Case(_) => Ok(String::new()), // Cases are handled within choices
-            DataNode::Uses(_) => Ok(String::new()), // Uses should be expanded during parsing
-        }
-    }
-
-    /// Generate a struct field from a data node.
-    fn generate_struct_field(
-        &self,
-        node: &crate::parser::DataNode,
-        module: &YangModule,
-    ) -> Result<String, GeneratorError> {
-        use crate::parser::DataNode;
-
-        match node {
-            DataNode::Leaf(leaf) => {
-                let mut field = String::new();
-
-                // Add rustdoc comment if description exists
-                if let Some(ref description) = leaf.description {
-                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
-                }
-
-                // Build serde attributes
-                let field_name_json = self.get_json_field_name(&leaf.name, module);
-                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
-                if !leaf.mandatory {
-                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
-                }
-                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
-
-                // Generate field name and type
-                let field_name = naming::to_field_name(&leaf.name);
-                let field_type = self.generate_leaf_type(&leaf.type_spec, leaf.mandatory);
-                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
-
-                Ok(field)
-            }
-            DataNode::Container(container) => {
-                let mut field = String::new();
-
-                // Add rustdoc comment if description exists
-                if let Some(ref description) = container.description {
-                    field.push_str(&format!("    {}", self.generate_rustdoc(description)));
-                }
-
-                // Build serde attributes
-                let field_name_json = self.get_json_field_name(&container.name, module);
-                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
-                if !container.mandatory {
-                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
-                }
-                field.push_str(&format!("    #[serde({})]\n", serde_attrs.join(", ")));
-
-                // Generate field name and type
-                let field_name = naming::to_field_name(&container.name);
-                let type_name = naming::to_type_name(&container.name);
-                let field_type = if container.mandatory {
-                    type_name
-                } else {
-                    format!("Option<{}>", type_name)
-                };
-                field.push_str(&format!("    pub {}: {},\n", field_name, field_type));
-
-                Ok(field)
-            }
             DataNode::List(list) => {
                 let mut field = String::new();
 
@@ -571,8 +446,17 @@ impl CodeGenerator {
                 // Generate field name and type
                 let field_name = naming::to_field_name(&list.name);
                 let type_name = naming::to_type_name(&list.name);
+                // Determine item type name (singular)
+                let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
+                    &type_name[..type_name.len() - 1]
+                } else {
+                    &type_name
+                };
                 // Lists are always collections (Vec)
-                field.push_str(&format!("    pub {}: {},\n", field_name, type_name));
+                field.push_str(&format!(
+                    "    pub {}: Vec<{}>,\n",
+                    field_name, item_type_name
+                ));
 
                 Ok(field)
             }
@@ -678,34 +562,34 @@ impl CodeGenerator {
 
         match type_spec {
             TypeSpec::Int8 { range } if range.is_some() => {
-                format!("ValidatedInt8_{}", self.constraint_hash(type_spec))
+                format!("ValidatedInt8Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Int16 { range } if range.is_some() => {
-                format!("ValidatedInt16_{}", self.constraint_hash(type_spec))
+                format!("ValidatedInt16Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Int32 { range } if range.is_some() => {
-                format!("ValidatedInt32_{}", self.constraint_hash(type_spec))
+                format!("ValidatedInt32Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Int64 { range } if range.is_some() => {
-                format!("ValidatedInt64_{}", self.constraint_hash(type_spec))
+                format!("ValidatedInt64Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Uint8 { range } if range.is_some() => {
-                format!("ValidatedUint8_{}", self.constraint_hash(type_spec))
+                format!("ValidatedUint8Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Uint16 { range } if range.is_some() => {
-                format!("ValidatedUint16_{}", self.constraint_hash(type_spec))
+                format!("ValidatedUint16Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Uint32 { range } if range.is_some() => {
-                format!("ValidatedUint32_{}", self.constraint_hash(type_spec))
+                format!("ValidatedUint32Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Uint64 { range } if range.is_some() => {
-                format!("ValidatedUint64_{}", self.constraint_hash(type_spec))
+                format!("ValidatedUint64Id{}", self.constraint_hash(type_spec))
             }
             TypeSpec::String { length, pattern } if length.is_some() || pattern.is_some() => {
-                format!("ValidatedString_{}", self.constraint_hash(type_spec))
+                format!("ValidatedStringId{}", self.constraint_hash(type_spec))
             }
             TypeSpec::Binary { length } if length.is_some() => {
-                format!("ValidatedBinary_{}", self.constraint_hash(type_spec))
+                format!("ValidatedBinaryId{}", self.constraint_hash(type_spec))
             }
             _ => "Unknown".to_string(),
         }
@@ -911,7 +795,10 @@ impl CodeGenerator {
 
         output.push_str("/// Error type for RPC operations.\n");
 
-        let mut derives = vec!["Debug"];
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
         if self.config.derive_clone {
             derives.push("Clone");
         }
@@ -1075,7 +962,7 @@ impl CodeGenerator {
             output.push_str("        ///\n");
             output.push_str("        /// Returns an error if the operation fails.\n");
             output.push_str(&format!(
-                "        pub async fn put_{}(data: {}) -> Result<(), RpcError> {{\n",
+                "        pub async fn put_{}(_data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, type_name
             ));
             output.push_str(&format!(
@@ -1096,7 +983,7 @@ impl CodeGenerator {
             output.push_str("        ///\n");
             output.push_str("        /// Returns an error if the operation fails.\n");
             output.push_str(&format!(
-                "        pub async fn patch_{}(data: {}) -> Result<(), RpcError> {{\n",
+                "        pub async fn patch_{}(_data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, type_name
             ));
             output.push_str(&format!(
@@ -1162,8 +1049,8 @@ impl CodeGenerator {
         output.push_str("        ///\n");
         output.push_str("        /// Returns an error if the operation fails.\n");
         output.push_str(&format!(
-            "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
-            function_prefix, type_name
+            "        pub async fn get_{}() -> Result<Vec<{}>, RpcError> {{\n",
+            function_prefix, item_type_name
         ));
         output.push_str(&format!(
             "            let _path = {}_path();\n",
@@ -1207,7 +1094,7 @@ impl CodeGenerator {
             output.push_str("        ///\n");
             output.push_str("        /// Returns an error if the operation fails.\n");
             output.push_str(&format!(
-                "        pub async fn create_{}(data: {}) -> Result<(), RpcError> {{\n",
+                "        pub async fn create_{}(_data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, item_type_name
             ));
             output.push_str(&format!(
@@ -1228,7 +1115,7 @@ impl CodeGenerator {
             output.push_str("        ///\n");
             output.push_str("        /// Returns an error if the operation fails.\n");
             output.push_str(&format!(
-                "        pub async fn put_{}({}, data: {}) -> Result<(), RpcError> {{\n",
+                "        pub async fn put_{}({}, _data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, key_params, item_type_name
             ));
             output.push_str(&format!(
@@ -1250,7 +1137,7 @@ impl CodeGenerator {
             output.push_str("        ///\n");
             output.push_str("        /// Returns an error if the operation fails.\n");
             output.push_str(&format!(
-                "        pub async fn patch_{}({}, data: {}) -> Result<(), RpcError> {{\n",
+                "        pub async fn patch_{}({}, _data: {}) -> Result<(), RpcError> {{\n",
                 function_prefix, key_params, item_type_name
             ));
             output.push_str(&format!(
@@ -1472,7 +1359,7 @@ impl CodeGenerator {
 
                 // Generate fields from input nodes
                 for node in input_nodes {
-                    let field = self.generate_struct_field(node, module)?;
+                    let field = self.generate_field(node, module, None)?;
                     // Add indentation for nested struct
                     for line in field.lines() {
                         output.push_str(&format!("    {}\n", line));
@@ -1492,7 +1379,7 @@ impl CodeGenerator {
 
                 // Generate fields from output nodes
                 for node in output_nodes {
-                    let field = self.generate_struct_field(node, module)?;
+                    let field = self.generate_field(node, module, None)?;
                     // Add indentation for nested struct
                     for line in field.lines() {
                         output.push_str(&format!("    {}\n", line));
@@ -1619,7 +1506,7 @@ impl CodeGenerator {
 
         // Generate fields from notification data nodes
         for node in &notification.data_nodes {
-            let field = self.generate_struct_field(node, module)?;
+            let field = self.generate_field(node, module, None)?;
             // Add indentation for nested struct
             for line in field.lines() {
                 output.push_str(&format!("    {}\n", line));
