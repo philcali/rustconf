@@ -240,6 +240,7 @@ fn generate_string_validated_type(
         for l in &len.lengths {
             output.push_str(&format!("/// - {} to {} characters\n", l.min, l.max));
         }
+        output.push_str("///\n");
     }
     if let Some(pat) = pattern {
         output.push_str(&format!("/// Pattern: {}\n", pat.pattern));
@@ -272,34 +273,13 @@ fn generate_string_validated_type(
     );
     output.push_str("    pub fn new(value: String) -> Result<Self, ValidationError> {\n");
 
-    // Generate length validation
+    // Generate length validation using helper
     if let Some(len) = length {
-        output.push_str("        let length = value.len() as u64;\n");
-        output.push_str("        let length_valid = ");
-        let length_checks: Vec<String> = len
-            .lengths
-            .iter()
-            .map(|l| format!("({}..={}).contains(&length)", l.min, l.max))
-            .collect();
-        output.push_str(&length_checks.join(" || "));
-        output.push_str(";\n\n");
-
-        output.push_str("        if !length_valid {\n");
-        output.push_str("            return Err(ValidationError::InvalidLength {\n");
-        output.push_str("                value: value.clone(),\n");
-
-        let constraint_str = len
-            .lengths
-            .iter()
-            .map(|l| format!("{}..{}", l.min, l.max))
-            .collect::<Vec<_>>()
-            .join(" | ");
-        output.push_str(&format!(
-            "                constraint: \"{}\".to_string(),\n",
-            constraint_str
+        output.push_str(&generate_length_validation_code(
+            len,
+            "value.len() as u64",
+            "value.clone()",
         ));
-        output.push_str("            });\n");
-        output.push_str("        }\n\n");
     }
 
     // Generate pattern validation
@@ -308,7 +288,7 @@ fn generate_string_validated_type(
         output.push_str(&format!("        let pattern = regex::Regex::new(r\"{}\").map_err(|_| ValidationError::InvalidPattern {{\n", pat.pattern));
         output.push_str("            value: value.clone(),\n");
         output.push_str(&format!(
-            "            pattern: \"{}\".to_string(),\n",
+            "            pattern: r\"{}\".to_string(),\n",
             pat.pattern
         ));
         output.push_str("        })?;\n\n");
@@ -317,7 +297,7 @@ fn generate_string_validated_type(
         output.push_str("            return Err(ValidationError::InvalidPattern {\n");
         output.push_str("                value: value.clone(),\n");
         output.push_str(&format!(
-            "                pattern: \"{}\".to_string(),\n",
+            "                pattern: r\"{}\".to_string(),\n",
             pat.pattern
         ));
         output.push_str("            });\n");
@@ -369,6 +349,49 @@ fn generate_string_validated_type(
     output
 }
 
+/// Generate length validation code that can be reused for strings and binary data.
+///
+/// # Parameters
+/// - `length`: The length constraint to validate
+/// - `length_expr`: Expression to get the length (e.g., "value.len() as u64")
+/// - `value_expr`: Expression to get the value for error messages (e.g., "value.clone()")
+fn generate_length_validation_code(
+    length: &LengthConstraint,
+    length_expr: &str,
+    value_expr: &str,
+) -> String {
+    let mut output = String::new();
+
+    output.push_str(&format!("        let length = {};\n", length_expr));
+    output.push_str("        let length_valid = ");
+    let length_checks: Vec<String> = length
+        .lengths
+        .iter()
+        .map(|l| format!("({}..={}).contains(&length)", l.min, l.max))
+        .collect();
+    output.push_str(&length_checks.join(" || "));
+    output.push_str(";\n\n");
+
+    output.push_str("        if !length_valid {\n");
+    output.push_str("            return Err(ValidationError::InvalidLength {\n");
+    output.push_str(&format!("                value: {},\n", value_expr));
+
+    let constraint_str = length
+        .lengths
+        .iter()
+        .map(|l| format!("{}..{}", l.min, l.max))
+        .collect::<Vec<_>>()
+        .join(" | ");
+    output.push_str(&format!(
+        "                constraint: \"{}\".to_string(),\n",
+        constraint_str
+    ));
+    output.push_str("            });\n");
+    output.push_str("        }\n\n");
+
+    output
+}
+
 /// Generate a binary-validated type with length constraints.
 fn generate_binary_validated_type(
     type_name: &str,
@@ -411,33 +434,12 @@ fn generate_binary_validated_type(
     output.push_str("    /// Returns `ValidationError::InvalidLength` if the length is outside the allowed ranges.\n");
     output.push_str("    pub fn new(value: Vec<u8>) -> Result<Self, ValidationError> {\n");
 
-    // Generate length validation
-    output.push_str("        let length = value.len() as u64;\n");
-    output.push_str("        let length_valid = ");
-    let length_checks: Vec<String> = length
-        .lengths
-        .iter()
-        .map(|l| format!("({}..={}).contains(&length)", l.min, l.max))
-        .collect();
-    output.push_str(&length_checks.join(" || "));
-    output.push_str(";\n\n");
-
-    output.push_str("        if !length_valid {\n");
-    output.push_str("            return Err(ValidationError::InvalidLength {\n");
-    output.push_str("                value: format!(\"{:?}\", value),\n");
-
-    let constraint_str = length
-        .lengths
-        .iter()
-        .map(|l| format!("{}..{}", l.min, l.max))
-        .collect::<Vec<_>>()
-        .join(" | ");
-    output.push_str(&format!(
-        "                constraint: \"{}\".to_string(),\n",
-        constraint_str
+    // Generate length validation using helper
+    output.push_str(&generate_length_validation_code(
+        length,
+        "value.len() as u64",
+        "format!(\"{:?}\", value)",
     ));
-    output.push_str("            });\n");
-    output.push_str("        }\n\n");
 
     output.push_str("        Ok(Self { value })\n");
     output.push_str("    }\n\n");

@@ -783,6 +783,27 @@ impl ModuleParser {
         }
     }
 
+    /// Parse an identifier, allowing YANG keywords to be used as identifiers.
+    /// This is necessary because YANG allows keywords like "description", "type", etc.
+    /// to be used as identifiers in certain contexts.
+    fn parse_identifier_or_keyword(&mut self) -> Result<String, ParseError> {
+        match self.advance() {
+            Token::Identifier(id) => Ok(id),
+            // Allow YANG keywords to be used as identifiers
+            Token::Description => Ok("description".to_string()),
+            Token::Type => Ok("type".to_string()),
+            Token::Config => Ok("config".to_string()),
+            Token::Status => Ok("status".to_string()),
+            Token::Reference => Ok("reference".to_string()),
+            Token::Default => Ok("default".to_string()),
+            Token::Input => Ok("input".to_string()),
+            Token::Output => Ok("output".to_string()),
+            Token::Action => Ok("action".to_string()),
+            Token::Notification => Ok("notification".to_string()),
+            token => Err(self.error(format!("Expected identifier, found {:?}", token))),
+        }
+    }
+
     /// Parse a string that may be concatenated with + operator (YANG 1.1 feature).
     /// Handles: "string1" + "string2" + "string3" -> "string1string2string3"
     fn parse_concatenated_string(&mut self) -> Result<String, ParseError> {
@@ -1510,10 +1531,7 @@ impl ModuleParser {
     fn parse_container(&mut self) -> Result<Container, ParseError> {
         self.expect(Token::Container)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected container name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1590,10 +1608,7 @@ impl ModuleParser {
     fn parse_list(&mut self) -> Result<List, ParseError> {
         self.expect(Token::List)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected list name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1670,10 +1685,7 @@ impl ModuleParser {
     fn parse_leaf(&mut self) -> Result<Leaf, ParseError> {
         self.expect(Token::Leaf)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected leaf name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1753,10 +1765,7 @@ impl ModuleParser {
     fn parse_leaf_list(&mut self) -> Result<LeafList, ParseError> {
         self.expect(Token::LeafList)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected leaf-list name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1808,10 +1817,7 @@ impl ModuleParser {
     fn parse_choice(&mut self) -> Result<Choice, ParseError> {
         self.expect(Token::Choice)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected choice name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1882,10 +1888,7 @@ impl ModuleParser {
     fn parse_case(&mut self) -> Result<Case, ParseError> {
         self.expect(Token::Case)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected case name, found {:?}", token))),
-        };
+        let name = self.parse_identifier_or_keyword()?;
 
         self.expect(Token::LeftBrace)?;
 
@@ -1979,31 +1982,25 @@ impl ModuleParser {
         // Skip the statement keyword
         self.advance();
 
-        // Skip until we find a semicolon or handle a block
-        match self.peek() {
-            Token::Semicolon => {
-                self.advance();
-                Ok(())
-            }
-            Token::LeftBrace => {
-                self.advance();
-                self.skip_block()?;
-                Ok(())
-            }
-            _ => {
-                // Skip identifier/string/number and then expect semicolon or block
-                self.advance();
-                match self.peek() {
-                    Token::Semicolon => {
-                        self.advance();
-                        Ok(())
-                    }
-                    Token::LeftBrace => {
-                        self.advance();
-                        self.skip_block()?;
-                        Ok(())
-                    }
-                    _ => Ok(()),
+        // Skip any arguments (identifiers, strings, numbers, etc.) until we find a semicolon or block
+        loop {
+            match self.peek() {
+                Token::Semicolon => {
+                    self.advance();
+                    return Ok(());
+                }
+                Token::LeftBrace => {
+                    self.advance();
+                    self.skip_block()?;
+                    return Ok(());
+                }
+                Token::RightBrace | Token::Eof => {
+                    // End of current block or file
+                    return Ok(());
+                }
+                _ => {
+                    // Skip any other token (identifier, string, number, etc.)
+                    self.advance();
                 }
             }
         }
