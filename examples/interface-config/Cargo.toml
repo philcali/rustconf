@@ -8,6 +8,7 @@ publish = false
 rustconf = { path = "../../rustconf" }
 serde.workspace = true
 serde_json.workspace = true
+regex.workspace = true
 
 [build-dependencies]
 rustconf = { path = "../../rustconf" }

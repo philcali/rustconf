@@ -402,14 +402,25 @@ fn operator(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse a number token.
+/// Only matches if the number is not immediately followed by an alphabetic character.
 fn number(input: &str) -> IResult<&str, Token> {
-    map(
-        recognize(pair(
-            nom::combinator::opt(char('-')),
-            take_while1(|c: char| c.is_ascii_digit()),
-        )),
-        |s: &str| Token::Number(s.parse().unwrap()),
-    )(input)
+    let (rest, num_str) = recognize(pair(
+        nom::combinator::opt(char('-')),
+        take_while1(|c: char| c.is_ascii_digit()),
+    ))(input)?;
+
+    // Check that the number is not followed by an alphabetic character
+    // This prevents matching "10M" as a number
+    if let Some(next_char) = rest.chars().next() {
+        if next_char.is_ascii_alphabetic() {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Digit,
+            )));
+        }
+    }
+
+    Ok((rest, Token::Number(num_str.parse().unwrap())))
 }
 
 /// Parse a string literal token (single or double quoted).
@@ -444,10 +455,11 @@ fn string_literal(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse an identifier token.
+/// YANG identifiers can start with letters, underscores, or digits (for enum values like "10M").
 fn identifier(input: &str) -> IResult<&str, Token> {
     map(
         recognize(pair(
-            take_while1(|c: char| c.is_ascii_alphabetic() || c == '_'),
+            take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_'),
             take_while(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'),
         )),
         |s: &str| Token::Identifier(s.to_string()),

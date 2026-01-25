@@ -3348,7 +3348,7 @@ fn test_deserialization_validation_works_for_pattern_constraints() {
 
     // 4. Error includes value and pattern
     assert!(content.contains("value: value.clone()"));
-    assert!(content.contains(r#"pattern: "[a-z]+@[a-z]+\.[a-z]+".to_string()"#));
+    assert!(content.contains(r#"pattern: r"[a-z]+@[a-z]+\.[a-z]+".to_string()"#));
 }
 
 #[test]
@@ -3968,7 +3968,7 @@ fn test_pattern_validation_error_includes_value_and_pattern() {
     assert!(content.contains("value: value.clone()"));
 
     // Verify error includes the pattern
-    assert!(content.contains(r#"pattern: "[A-Z]{3}-\d{4}".to_string()"#));
+    assert!(content.contains(r#"pattern: r"[A-Z]{3}-\d{4}".to_string()"#));
 
     // Verify Display implementation shows both value and pattern
     assert!(

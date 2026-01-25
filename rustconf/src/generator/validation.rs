@@ -240,6 +240,7 @@ fn generate_string_validated_type(
         for l in &len.lengths {
             output.push_str(&format!("/// - {} to {} characters\n", l.min, l.max));
         }
+        output.push_str("///\n");
     }
     if let Some(pat) = pattern {
         output.push_str(&format!("/// Pattern: {}\n", pat.pattern));
@@ -308,7 +309,7 @@ fn generate_string_validated_type(
         output.push_str(&format!("        let pattern = regex::Regex::new(r\"{}\").map_err(|_| ValidationError::InvalidPattern {{\n", pat.pattern));
         output.push_str("            value: value.clone(),\n");
         output.push_str(&format!(
-            "            pattern: \"{}\".to_string(),\n",
+            "            pattern: r\"{}\".to_string(),\n",
             pat.pattern
         ));
         output.push_str("        })?;\n\n");
@@ -317,7 +318,7 @@ fn generate_string_validated_type(
         output.push_str("            return Err(ValidationError::InvalidPattern {\n");
         output.push_str("                value: value.clone(),\n");
         output.push_str(&format!(
-            "                pattern: \"{}\".to_string(),\n",
+            "                pattern: r\"{}\".to_string(),\n",
             pat.pattern
         ));
         output.push_str("            });\n");

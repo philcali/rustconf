@@ -11,7 +11,7 @@ fn main() {
     // Configure and run rustconf code generation
     let result = rustconf::RustconfBuilder::new()
         // Specify the YANG file to process
-        .yang_file("yang/interface-config-simple.yang")
+        .yang_file("yang/interface-config.yang")
         // Add search path for resolving YANG imports
         .search_path("yang/")
         // Set output directory for generated code
