@@ -66,11 +66,9 @@ impl RustconfBuilder {
     /// Generate Rust bindings from configured YANG files.
     pub fn generate(self) -> Result<(), BuildError> {
         // Validate configuration
-        if self.yang_files.is_empty() {
-            return Err(BuildError::ConfigurationError {
-                message: "No YANG files specified. Use yang_file() to add at least one YANG file."
-                    .to_string(),
-            });
+        if let Err(e) = self.validate_configuration() {
+            e.report_to_cargo();
+            return Err(e);
         }
 
         // Create YANG parser
@@ -84,8 +82,15 @@ impl RustconfBuilder {
         // Parse all YANG files
         let mut modules = Vec::new();
         for yang_file in &self.yang_files {
-            let module = parser.parse_file(yang_file)?;
-            modules.push(module);
+            match parser.parse_file(yang_file) {
+                Ok(module) => modules.push(module),
+                Err(e) => {
+                    let build_error = BuildError::from(e);
+                    let error_with_context = build_error.with_file_context(yang_file.clone());
+                    error_with_context.report_to_cargo();
+                    return Err(error_with_context.into_inner());
+                }
+            }
         }
 
         // Create code generator
@@ -93,17 +98,34 @@ impl RustconfBuilder {
 
         // Generate code for each module
         for module in &modules {
-            let generated = generator.generate(module)?;
+            match generator.generate(module) {
+                Ok(generated) => {
+                    // Write generated files to output directory
+                    for file in &generated.files {
+                        // Ensure parent directory exists
+                        if let Some(parent) = file.path.parent() {
+                            if let Err(e) = std::fs::create_dir_all(parent) {
+                                let build_error = BuildError::from(e);
+                                build_error.report_to_cargo();
+                                return Err(build_error);
+                            }
+                        }
 
-            // Write generated files to output directory
-            for file in &generated.files {
-                // Ensure parent directory exists
-                if let Some(parent) = file.path.parent() {
-                    std::fs::create_dir_all(parent)?;
+                        // Write the file
+                        if let Err(e) = std::fs::write(&file.path, &file.content) {
+                            let build_error = BuildError::from(e);
+                            let error_with_context =
+                                build_error.with_file_context(file.path.clone());
+                            error_with_context.report_to_cargo();
+                            return Err(error_with_context.into_inner());
+                        }
+                    }
                 }
-
-                // Write the file
-                std::fs::write(&file.path, &file.content)?;
+                Err(e) => {
+                    let build_error = BuildError::from(e);
+                    build_error.report_to_cargo();
+                    return Err(build_error);
+                }
             }
         }
 
@@ -122,6 +144,129 @@ impl RustconfBuilder {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    /// Validate the builder configuration.
+    fn validate_configuration(&self) -> Result<(), BuildError> {
+        // 1. Validate required fields: at least one YANG file must be specified
+        if self.yang_files.is_empty() {
+            return Err(BuildError::ConfigurationError {
+                message: "No YANG files specified. Use yang_file() to add at least one YANG file."
+                    .to_string(),
+            });
+        }
+
+        // 2. Check that all YANG files exist and are accessible
+        for yang_file in &self.yang_files {
+            if !yang_file.exists() {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("YANG file does not exist: {}", yang_file.display()),
+                });
+            }
+
+            if !yang_file.is_file() {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("YANG file path is not a file: {}", yang_file.display()),
+                });
+            }
+
+            // Check if file is readable by attempting to get metadata
+            if let Err(e) = std::fs::metadata(yang_file) {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("Cannot access YANG file {}: {}", yang_file.display(), e),
+                });
+            }
+        }
+
+        // 3. Check that all search paths exist and are accessible
+        for search_path in &self.search_paths {
+            if !search_path.exists() {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("Search path does not exist: {}", search_path.display()),
+                });
+            }
+
+            if !search_path.is_dir() {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("Search path is not a directory: {}", search_path.display()),
+                });
+            }
+
+            // Check if directory is readable
+            if let Err(e) = std::fs::read_dir(search_path) {
+                return Err(BuildError::ConfigurationError {
+                    message: format!("Cannot access search path {}: {}", search_path.display(), e),
+                });
+            }
+        }
+
+        // 4. Validate output directory parent exists or can be created
+        // We allow the output directory itself to not exist (we'll create it)
+        // But we need at least one ancestor that exists
+        if !self.output_dir.as_os_str().is_empty() {
+            let mut ancestor = self.output_dir.as_path();
+            let mut found_existing = false;
+
+            // Walk up the directory tree to find an existing ancestor
+            while let Some(parent) = ancestor.parent() {
+                if parent.as_os_str().is_empty() {
+                    // Reached root or relative path base
+                    found_existing = true;
+                    break;
+                }
+                if parent.exists() {
+                    found_existing = true;
+                    break;
+                }
+                ancestor = parent;
+            }
+
+            // If we have an absolute path that doesn't exist anywhere, that's an error
+            if self.output_dir.is_absolute() && !found_existing {
+                return Err(BuildError::ConfigurationError {
+                    message: format!(
+                        "Output directory path is not accessible: {}",
+                        self.output_dir.display()
+                    ),
+                });
+            }
+        }
+
+        // 5. Validate module name is a valid Rust identifier
+        let module_name = &self.config.module_name;
+        if module_name.is_empty() {
+            return Err(BuildError::ConfigurationError {
+                message: "Module name cannot be empty".to_string(),
+            });
+        }
+
+        // Check if module name starts with a digit
+        if module_name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit())
+        {
+            return Err(BuildError::ConfigurationError {
+                message: format!("Module name '{}' cannot start with a digit", module_name),
+            });
+        }
+
+        // Check if module name contains only valid characters (alphanumeric and underscore)
+        if !module_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err(BuildError::ConfigurationError {
+                message: format!(
+                    "Module name '{}' contains invalid characters. Only alphanumeric characters and underscores are allowed",
+                    module_name
+                ),
+            });
+        }
+
+        // 6. Detect conflicting options
+        // Check if XML is enabled but validation is disabled (potential issue)
+        // This is more of a warning scenario, but we can document it
+        // For now, no strict conflicts to detect
 
         Ok(())
     }
