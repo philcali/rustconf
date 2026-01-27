@@ -113,29 +113,29 @@
 ## Phase 3: Formatting Integration
 
 ### 14. Integrate Formatting for Type Aliases (Refs: Requirements 3.1, 3.4)
-- [ ] 14.1 Update `TypeGenerator::generate_typedef()` to use `formatting::generate_type_alias()`
-- [ ] 14.2 Handle `syn::Type` conversion for base types
-- [ ] 14.3 Run tests to verify output is identical
-- [ ] 14.4 Compare generated code before/after
+- [x] 14.1 Update `TypeGenerator::generate_typedef()` to use `formatting::generate_type_alias()`
+- [x] 14.2 Handle `syn::Type` conversion for base types
+- [x] 14.3 Run tests to verify output is identical
+- [x] 14.4 Compare generated code before/after
 
 ### 15. Extend Formatting Module for Serde (Refs: Requirements 3.2, 3.3)
-- [ ] 15.1 Add `StructField` type to `formatting.rs` with serde attributes
-- [ ] 15.2 Add `generate_struct_with_serde()` function
-- [ ] 15.3 Add tests for new formatting functions
-- [ ] 15.4 Document the new API
+- [x] 15.1 Add `StructField` type to `formatting.rs` with serde attributes
+- [x] 15.2 Add `generate_struct_with_serde()` function
+- [x] 15.3 Add tests for new formatting functions
+- [x] 15.4 Document the new API
 
 ### 16. Integrate Formatting for Structs (Refs: Requirements 3.1, 3.4, 3.5)
-- [ ] 16.1 Update `TypeGenerator::generate_container()` to use formatting module
-- [ ] 16.2 Update `TypeGenerator::generate_list()` to use formatting module
-- [ ] 16.3 Update `TypeGenerator::generate_case_struct()` to use formatting module
-- [ ] 16.4 Run tests to verify output is identical
-- [ ] 16.5 Compare generated code before/after
+- [x] 16.1 Update `TypeGenerator::generate_container()` to use formatting module
+- [x] 16.2 Update `TypeGenerator::generate_list()` to use formatting module
+- [x] 16.3 Update `TypeGenerator::generate_case_struct()` to use formatting module
+- [x] 16.4 Run tests to verify output is identical
+- [x] 16.5 Compare generated code before/after
 
 ### 17. Integrate Formatting for Enums (Refs: Requirements 3.1, 3.4, 3.5)
-- [ ] 17.1 Update `TypeGenerator::generate_choice()` to use `formatting::generate_enum()`
-- [ ] 17.2 Handle serde attributes for enums
-- [ ] 17.3 Run tests to verify output is identical
-- [ ] 17.4 Compare generated code before/after
+- [x] 17.1 Update `TypeGenerator::generate_choice()` to use `formatting::generate_enum()`
+- [x] 17.2 Handle serde attributes for enums
+- [x] 17.3 Run tests to verify output is identical
+- [x] 17.4 Compare generated code before/after
 
 ## Phase 4: CRUD Pattern Extraction
 
