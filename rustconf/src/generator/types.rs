@@ -57,16 +57,18 @@ impl<'a> TypeGenerator<'a> {
         };
 
         // Convert the type string to a syn::Type
-        let target_type: syn::Type = syn::parse_str(&target_type_str)
-            .map_err(|e| GeneratorError::CodeGeneration(format!("Failed to parse type '{}': {}", target_type_str, e)))?;
+        let target_type: syn::Type = syn::parse_str(&target_type_str).map_err(|e| {
+            GeneratorError::CodeGeneration(format!(
+                "Failed to parse type '{}': {}",
+                target_type_str, e
+            ))
+        })?;
 
         // Use the formatting module to generate the type alias
-        formatting::generate_type_alias(
-            &type_name,
-            target_type,
-            typedef.description.as_deref(),
-        )
-        .map_err(|e| GeneratorError::CodeGeneration(format!("Failed to generate type alias: {}", e)))
+        formatting::generate_type_alias(&type_name, target_type, typedef.description.as_deref())
+            .map_err(|e| {
+                GeneratorError::CodeGeneration(format!("Failed to generate type alias: {}", e))
+            })
     }
 
     /// Generate code for a data node.
@@ -92,26 +94,31 @@ impl<'a> TypeGenerator<'a> {
         container: &Container,
         module: &YangModule,
     ) -> Result<String, GeneratorError> {
+        use crate::generator::formatting;
+
         let mut output = String::new();
 
-        // Generate rustdoc comment from YANG description
-        if let Some(ref description) = container.description {
-            output.push_str(&self.generate_rustdoc(description));
-        }
-
-        // Generate derive attributes
-        output.push_str(&self.generate_derive_attributes());
-
-        // Generate struct definition
-        let type_name = crate::generator::naming::to_type_name(&container.name);
-        output.push_str(&format!("pub struct {} {{\n", type_name));
-
-        // Generate fields from child nodes
+        // Collect fields from child nodes
+        let mut fields = Vec::new();
         for child in &container.children {
-            output.push_str(&self.generate_field(child, module, None)?);
+            if let Some(field) = self.data_node_to_struct_field(child, module, None)? {
+                fields.push(field);
+            }
         }
 
-        output.push_str("}\n");
+        // Generate struct using formatting module
+        let type_name = crate::generator::naming::to_type_name(&container.name);
+        let derives = self.get_derive_traits();
+
+        let struct_code = formatting::generate_struct_with_serde(
+            &type_name,
+            fields,
+            derives,
+            container.description.as_deref(),
+        )
+        .map_err(|e| GeneratorError::CodeGeneration(format!("Failed to generate struct: {}", e)))?;
+
+        output.push_str(&struct_code);
 
         // Recursively generate types for nested containers, lists, and choices
         for child in &container.children {
@@ -141,58 +148,80 @@ impl<'a> TypeGenerator<'a> {
         choice: &Choice,
         module: &YangModule,
     ) -> Result<String, GeneratorError> {
+        use crate::generator::formatting::{self, EnumVariant};
+
         let mut output = String::new();
 
-        // Generate rustdoc comment from YANG description
-        if let Some(ref description) = choice.description {
-            output.push_str(&self.generate_rustdoc(description));
-        }
-
-        // Generate derive attributes
-        output.push_str(&self.generate_derive_attributes());
-
-        // Add serde attribute for kebab-case serialization
-        output.push_str("#[serde(rename_all = \"kebab-case\")]\n");
-
-        // Generate enum definition
-        let type_name = crate::generator::naming::to_type_name(&choice.name);
-        output.push_str(&format!("pub enum {} {{\n", type_name));
-
-        // Generate variants from cases
+        // Collect variants from cases
+        let mut variants = Vec::new();
         for case in &choice.cases {
-            // Add rustdoc comment for case if description exists
-            if let Some(ref description) = case.description {
-                output.push_str(&format!("    {}", self.generate_rustdoc(description)));
-            }
-
             let variant_name = crate::generator::naming::to_type_name(&case.name);
 
             // Determine the variant type based on case contents
-            if case.data_nodes.is_empty() {
+            let data_type = if case.data_nodes.is_empty() {
                 // Empty case - unit variant
-                output.push_str(&format!("    {},\n", variant_name));
+                None
             } else if case.data_nodes.len() == 1 {
                 // Single data node - check if it's a leaf or complex type
                 match &case.data_nodes[0] {
                     DataNode::Leaf(leaf) => {
                         // Single leaf - use tuple variant with the leaf type
-                        let leaf_type = self.generate_leaf_type(&leaf.type_spec, true);
-                        output.push_str(&format!("    {}({}),\n", variant_name, leaf_type));
+                        let leaf_type_str = self.generate_leaf_type(&leaf.type_spec, true);
+                        let leaf_type: syn::Type = syn::parse_str(&leaf_type_str).map_err(|e| {
+                            GeneratorError::CodeGeneration(format!(
+                                "Failed to parse leaf type '{}': {}",
+                                leaf_type_str, e
+                            ))
+                        })?;
+                        Some(leaf_type)
                     }
                     _ => {
                         // Complex type - use named struct variant
                         let case_type_name = format!("{}Data", variant_name);
-                        output.push_str(&format!("    {}({}),\n", variant_name, case_type_name));
+                        let case_type: syn::Type =
+                            syn::parse_str(&case_type_name).map_err(|e| {
+                                GeneratorError::CodeGeneration(format!(
+                                    "Failed to parse case type '{}': {}",
+                                    case_type_name, e
+                                ))
+                            })?;
+                        Some(case_type)
                     }
                 }
             } else {
                 // Multiple data nodes - use named struct variant
                 let case_type_name = format!("{}Data", variant_name);
-                output.push_str(&format!("    {}({}),\n", variant_name, case_type_name));
-            }
+                let case_type: syn::Type = syn::parse_str(&case_type_name).map_err(|e| {
+                    GeneratorError::CodeGeneration(format!(
+                        "Failed to parse case type '{}': {}",
+                        case_type_name, e
+                    ))
+                })?;
+                Some(case_type)
+            };
+
+            variants.push(EnumVariant {
+                name: variant_name,
+                data_type,
+                doc_comment: case.description.clone(),
+            });
         }
 
-        output.push_str("}\n");
+        // Generate enum using formatting module
+        let type_name = crate::generator::naming::to_type_name(&choice.name);
+        let derives = self.get_derive_traits();
+        let serde_attrs = vec![r#"rename_all = "kebab-case""#];
+
+        let enum_code = formatting::generate_enum_with_serde(
+            &type_name,
+            variants,
+            derives,
+            serde_attrs,
+            choice.description.as_deref(),
+        )
+        .map_err(|e| GeneratorError::CodeGeneration(format!("Failed to generate enum: {}", e)))?;
+
+        output.push_str(&enum_code);
 
         // Generate struct types for cases with multiple or complex data nodes
         for case in &choice.cases {
@@ -230,29 +259,30 @@ impl<'a> TypeGenerator<'a> {
         case: &Case,
         module: &YangModule,
     ) -> Result<String, GeneratorError> {
-        let mut output = String::new();
+        use crate::generator::formatting;
 
-        // Generate rustdoc comment from case description
-        if let Some(ref description) = case.description {
-            output.push_str(&self.generate_rustdoc(description));
+        // Collect fields from data nodes
+        let mut fields = Vec::new();
+        for node in &case.data_nodes {
+            if let Some(field) = self.data_node_to_struct_field(node, module, None)? {
+                fields.push(field);
+            }
         }
-
-        // Generate derive attributes
-        output.push_str(&self.generate_derive_attributes());
 
         // Generate struct definition
         let variant_name = crate::generator::naming::to_type_name(&case.name);
         let struct_name = format!("{}Data", variant_name);
-        output.push_str(&format!("pub struct {} {{\n", struct_name));
+        let derives = self.get_derive_traits();
 
-        // Generate fields from data nodes
-        for node in &case.data_nodes {
-            output.push_str(&self.generate_field(node, module, None)?);
-        }
-
-        output.push_str("}\n");
-
-        Ok(output)
+        formatting::generate_struct_with_serde(
+            &struct_name,
+            fields,
+            derives,
+            case.description.as_deref(),
+        )
+        .map_err(|e| {
+            GeneratorError::CodeGeneration(format!("Failed to generate case struct: {}", e))
+        })
     }
 
     /// Generate a Rust struct and Vec type alias from a YANG list.
@@ -261,34 +291,41 @@ impl<'a> TypeGenerator<'a> {
         list: &List,
         module: &YangModule,
     ) -> Result<String, GeneratorError> {
+        use crate::generator::formatting;
+
         let mut output = String::new();
 
-        // Generate rustdoc comment from YANG description
-        if let Some(ref description) = list.description {
-            output.push_str(&self.generate_rustdoc(description));
+        // Collect fields from child nodes (key fields must be non-optional)
+        let mut fields = Vec::new();
+        for child in &list.children {
+            if let Some(field) = self.data_node_to_struct_field(child, module, Some(&list.keys))? {
+                fields.push(field);
+            }
         }
-
-        // Generate derive attributes
-        output.push_str(&self.generate_derive_attributes());
 
         // Generate struct definition for list items
         let type_name = crate::generator::naming::to_type_name(&list.name);
         // Remove trailing 's' for singular item type name if present
         let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
-            &type_name[..type_name.len() - 1]
+            type_name[..type_name.len() - 1].to_string()
         } else {
-            &type_name
+            type_name.clone()
         };
 
-        output.push_str(&format!("pub struct {} {{\n", item_type_name));
+        let derives = self.get_derive_traits();
 
-        // Generate fields from child nodes
-        // Key fields must be non-optional
-        for child in &list.children {
-            output.push_str(&self.generate_field(child, module, Some(&list.keys))?);
-        }
+        let struct_code = formatting::generate_struct_with_serde(
+            &item_type_name,
+            fields,
+            derives,
+            list.description.as_deref(),
+        )
+        .map_err(|e| {
+            GeneratorError::CodeGeneration(format!("Failed to generate list struct: {}", e))
+        })?;
 
-        output.push_str("}\n\n");
+        output.push_str(&struct_code);
+        output.push('\n');
 
         // Recursively generate types for nested containers, lists, and choices
         for child in &list.children {
@@ -623,8 +660,8 @@ impl<'a> TypeGenerator<'a> {
         }
     }
 
-    /// Generate derive attributes based on configuration.
-    fn generate_derive_attributes(&self) -> String {
+    /// Get derive traits as a vector of string slices.
+    fn get_derive_traits(&self) -> Vec<&'static str> {
         let mut derives = vec!["Serialize", "Deserialize"];
 
         if self.config.derive_debug {
@@ -635,6 +672,150 @@ impl<'a> TypeGenerator<'a> {
             derives.insert(if self.config.derive_debug { 1 } else { 0 }, "Clone");
         }
 
-        format!("#[derive({})]\n", derives.join(", "))
+        derives
+    }
+
+    /// Convert a data node to a StructField for use with the formatting module.
+    fn data_node_to_struct_field(
+        &self,
+        node: &DataNode,
+        module: &YangModule,
+        keys: Option<&[String]>,
+    ) -> Result<Option<crate::generator::formatting::StructField>, GeneratorError> {
+        use crate::generator::formatting::StructField;
+
+        match node {
+            DataNode::Leaf(leaf) => {
+                // Check if this leaf is a key field
+                let is_key = keys.is_some_and(|k| k.contains(&leaf.name));
+
+                // Build serde attributes
+                let field_name_json = self.get_json_field_name(&leaf.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
+
+                // Key fields are always mandatory, so only add skip_serializing_if for non-key optional fields
+                if !is_key && !leaf.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+
+                // Generate field name and type
+                let field_name = crate::generator::naming::to_field_name(&leaf.name);
+
+                // Key fields are always non-optional
+                let field_type_str = if is_key {
+                    self.generate_leaf_type(&leaf.type_spec, true)
+                } else {
+                    self.generate_leaf_type(&leaf.type_spec, leaf.mandatory)
+                };
+
+                let field_type: syn::Type = syn::parse_str(&field_type_str).map_err(|e| {
+                    GeneratorError::CodeGeneration(format!(
+                        "Failed to parse field type '{}': {}",
+                        field_type_str, e
+                    ))
+                })?;
+
+                Ok(Some(StructField {
+                    name: field_name,
+                    ty: field_type,
+                    serde_attrs,
+                    doc_comment: leaf.description.clone(),
+                }))
+            }
+            DataNode::Container(container) => {
+                // Build serde attributes
+                let field_name_json = self.get_json_field_name(&container.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
+                if !container.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+
+                // Generate field name and type
+                let field_name = crate::generator::naming::to_field_name(&container.name);
+                let type_name = crate::generator::naming::to_type_name(&container.name);
+                let field_type_str = if container.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+
+                let field_type: syn::Type = syn::parse_str(&field_type_str).map_err(|e| {
+                    GeneratorError::CodeGeneration(format!(
+                        "Failed to parse field type '{}': {}",
+                        field_type_str, e
+                    ))
+                })?;
+
+                Ok(Some(StructField {
+                    name: field_name,
+                    ty: field_type,
+                    serde_attrs,
+                    doc_comment: container.description.clone(),
+                }))
+            }
+            DataNode::List(list) => {
+                // Build serde attributes
+                let field_name_json = self.get_json_field_name(&list.name, module);
+                let serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
+
+                // Generate field name and type
+                let field_name = crate::generator::naming::to_field_name(&list.name);
+                let type_name = crate::generator::naming::to_type_name(&list.name);
+
+                // Determine item type name (singular)
+                let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
+                    &type_name[..type_name.len() - 1]
+                } else {
+                    &type_name
+                };
+
+                let field_type_str = format!("Vec<{}>", item_type_name);
+                let field_type: syn::Type = syn::parse_str(&field_type_str).map_err(|e| {
+                    GeneratorError::CodeGeneration(format!(
+                        "Failed to parse field type '{}': {}",
+                        field_type_str, e
+                    ))
+                })?;
+
+                Ok(Some(StructField {
+                    name: field_name,
+                    ty: field_type,
+                    serde_attrs,
+                    doc_comment: list.description.clone(),
+                }))
+            }
+            DataNode::Choice(choice) => {
+                // Build serde attributes
+                let field_name_json = self.get_json_field_name(&choice.name, module);
+                let mut serde_attrs = vec![format!("rename = \"{}\"", field_name_json)];
+                if !choice.mandatory {
+                    serde_attrs.push("skip_serializing_if = \"Option::is_none\"".to_string());
+                }
+
+                // Generate field name and type
+                let field_name = crate::generator::naming::to_field_name(&choice.name);
+                let type_name = crate::generator::naming::to_type_name(&choice.name);
+                let field_type_str = if choice.mandatory {
+                    type_name
+                } else {
+                    format!("Option<{}>", type_name)
+                };
+
+                let field_type: syn::Type = syn::parse_str(&field_type_str).map_err(|e| {
+                    GeneratorError::CodeGeneration(format!(
+                        "Failed to parse field type '{}': {}",
+                        field_type_str, e
+                    ))
+                })?;
+
+                Ok(Some(StructField {
+                    name: field_name,
+                    ty: field_type,
+                    serde_attrs,
+                    doc_comment: choice.description.clone(),
+                }))
+            }
+            _ => Ok(None), // Other node types don't generate fields
+        }
     }
 }

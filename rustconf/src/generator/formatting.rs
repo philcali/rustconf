@@ -12,6 +12,13 @@ pub struct StructField {
     pub doc_comment: Option<String>,
 }
 
+/// An enum variant with optional data type and documentation.
+pub struct EnumVariant {
+    pub name: String,
+    pub data_type: Option<Type>,
+    pub doc_comment: Option<String>,
+}
+
 /// Format a token stream into a well-formatted Rust code string.
 ///
 /// This function uses prettyplease to format the generated code according
@@ -112,16 +119,17 @@ pub fn generate_struct_with_serde(
         .map(|field| {
             let field_ident = Ident::new(&field.name, proc_macro2::Span::call_site());
             let field_type = &field.ty;
-            
+
             // Parse serde attributes
-            let serde_attrs: Vec<TokenStream> = field.serde_attrs
+            let serde_attrs: Vec<TokenStream> = field
+                .serde_attrs
                 .iter()
                 .map(|attr| {
                     let attr_tokens: TokenStream = attr.parse().unwrap_or_else(|_| quote! {});
                     quote! { #[serde(#attr_tokens)] }
                 })
                 .collect();
-            
+
             // Add doc comment if present
             if let Some(ref doc) = field.doc_comment {
                 quote! {
@@ -257,6 +265,87 @@ pub fn generate_enum(
     } else {
         quote! {
             #[derive(#(#derive_idents),*)]
+            pub enum #enum_name {
+                #(#variant_defs),*
+            }
+        }
+    };
+
+    format_token_stream(tokens)
+}
+
+/// Generate an enum definition with serde attributes and per-variant documentation.
+///
+/// # Arguments
+/// * `name` - The name of the enum
+/// * `variants` - A vector of EnumVariant with optional documentation
+/// * `derives` - A vector of trait names to derive
+/// * `serde_attrs` - Additional serde attributes (e.g., "rename_all = \"kebab-case\"")
+/// * `doc_comment` - Optional documentation comment for the enum
+///
+/// # Returns
+/// A formatted Rust enum definition as a string
+pub fn generate_enum_with_serde(
+    name: &str,
+    variants: Vec<EnumVariant>,
+    derives: Vec<&str>,
+    serde_attrs: Vec<&str>,
+    doc_comment: Option<&str>,
+) -> Result<String, syn::Error> {
+    let enum_name = Ident::new(name, proc_macro2::Span::call_site());
+
+    // Build derive attributes
+    let derive_idents: Vec<Ident> = derives
+        .iter()
+        .map(|d| Ident::new(d, proc_macro2::Span::call_site()))
+        .collect();
+
+    // Build serde attributes
+    let serde_attr_tokens: Vec<TokenStream> = serde_attrs
+        .iter()
+        .map(|attr| {
+            let attr_tokens: TokenStream = attr.parse().unwrap_or_else(|_| quote! {});
+            quote! { #[serde(#attr_tokens)] }
+        })
+        .collect();
+
+    // Build variants with documentation
+    let variant_defs: Vec<TokenStream> = variants
+        .iter()
+        .map(|variant| {
+            let variant_ident = Ident::new(&variant.name, proc_macro2::Span::call_site());
+
+            let variant_def = if let Some(ref ty) = variant.data_type {
+                quote! { #variant_ident(#ty) }
+            } else {
+                quote! { #variant_ident }
+            };
+
+            if let Some(ref doc) = variant.doc_comment {
+                quote! {
+                    #[doc = #doc]
+                    #variant_def
+                }
+            } else {
+                variant_def
+            }
+        })
+        .collect();
+
+    // Build the enum with optional doc comment
+    let tokens = if let Some(doc) = doc_comment {
+        quote! {
+            #[doc = #doc]
+            #[derive(#(#derive_idents),*)]
+            #(#serde_attr_tokens)*
+            pub enum #enum_name {
+                #(#variant_defs),*
+            }
+        }
+    } else {
+        quote! {
+            #[derive(#(#derive_idents),*)]
+            #(#serde_attr_tokens)*
             pub enum #enum_name {
                 #(#variant_defs),*
             }
@@ -457,9 +546,7 @@ mod tests {
             StructField {
                 name: "age".to_string(),
                 ty: parse_quote!(Option<u32>),
-                serde_attrs: vec![
-                    r#"skip_serializing_if = "Option::is_none""#.to_string(),
-                ],
+                serde_attrs: vec![r#"skip_serializing_if = "Option::is_none""#.to_string()],
                 doc_comment: None,
             },
         ];
@@ -481,6 +568,48 @@ mod tests {
         assert!(code.contains("pub age: Option<u32>"));
         assert!(code.contains(r#"rename = "user-name""#));
         assert!(code.contains(r#"skip_serializing_if = "Option::is_none""#));
+        assert!(code.contains("#[derive(Debug, Serialize, Deserialize)]"));
+    }
+
+    #[test]
+    fn test_generate_enum_with_serde() {
+        let variants = vec![
+            EnumVariant {
+                name: "TcpVariant".to_string(),
+                data_type: Some(parse_quote!(u16)),
+                doc_comment: Some("TCP protocol variant".to_string()),
+            },
+            EnumVariant {
+                name: "UdpVariant".to_string(),
+                data_type: Some(parse_quote!(u16)),
+                doc_comment: Some("UDP protocol variant".to_string()),
+            },
+            EnumVariant {
+                name: "None".to_string(),
+                data_type: None,
+                doc_comment: None,
+            },
+        ];
+
+        let result = generate_enum_with_serde(
+            "Protocol",
+            variants,
+            vec!["Debug", "Serialize", "Deserialize"],
+            vec![r#"rename_all = "kebab-case""#],
+            Some("Network protocol choice"),
+        );
+
+        assert!(result.is_ok());
+        let code = result.unwrap();
+
+        assert!(code.contains("pub enum Protocol"));
+        assert!(code.contains("Network protocol choice"));
+        assert!(code.contains("TCP protocol variant"));
+        assert!(code.contains("UDP protocol variant"));
+        assert!(code.contains("TcpVariant(u16)"));
+        assert!(code.contains("UdpVariant(u16)"));
+        assert!(code.contains("None"));
+        assert!(code.contains(r#"rename_all = "kebab-case""#));
         assert!(code.contains("#[derive(Debug, Serialize, Deserialize)]"));
     }
 }
