@@ -4,7 +4,7 @@
 //! from YANG data definitions including containers, lists, choices, and typedefs.
 
 use crate::generator::{GeneratorConfig, GeneratorError};
-use crate::parser::{YangModule, TypeDef, DataNode, Container, List, Choice, Case};
+use crate::parser::{Case, Choice, Container, DataNode, List, TypeDef, YangModule};
 
 /// Generator for Rust type definitions from YANG data nodes.
 pub struct TypeGenerator<'a> {
@@ -198,8 +198,7 @@ impl<'a> TypeGenerator<'a> {
         // Generate struct types for cases with multiple or complex data nodes
         for case in &choice.cases {
             if case.data_nodes.len() > 1
-                || (case.data_nodes.len() == 1
-                    && !matches!(case.data_nodes[0], DataNode::Leaf(_)))
+                || (case.data_nodes.len() == 1 && !matches!(case.data_nodes[0], DataNode::Leaf(_)))
             {
                 output.push('\n');
                 output.push_str(&self.generate_case_struct(case, module)?);
@@ -447,7 +446,11 @@ impl<'a> TypeGenerator<'a> {
     }
 
     /// Generate a Rust type from a YANG leaf type specification.
-    pub fn generate_leaf_type(&self, type_spec: &crate::parser::TypeSpec, mandatory: bool) -> String {
+    pub fn generate_leaf_type(
+        &self,
+        type_spec: &crate::parser::TypeSpec,
+        mandatory: bool,
+    ) -> String {
         use crate::parser::TypeSpec;
 
         // Check if we should generate a validated type
