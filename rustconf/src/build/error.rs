@@ -116,6 +116,12 @@ impl BuildError {
                 println!("cargo:warning=");
                 println!("cargo:warning=  Suggestion: Check your RustconfBuilder configuration in build.rs.");
             }
+            GeneratorError::CodeGeneration(message) => {
+                println!("cargo:warning=  Code generation error: {}", message);
+                println!("cargo:warning=");
+                println!("cargo:warning=  Suggestion: This may indicate an internal error in rustconf.");
+                println!("cargo:warning=  Please report this issue with your YANG model.");
+            }
             GeneratorError::IoError(io_err) => {
                 println!("cargo:warning=  I/O error during generation: {}", io_err);
                 println!("cargo:warning=");

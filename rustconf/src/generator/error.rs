@@ -12,6 +12,9 @@ pub enum GeneratorError {
     #[error("Invalid configuration: {message}")]
     InvalidConfiguration { message: String },
 
+    #[error("Code generation error: {0}")]
+    CodeGeneration(String),
+
     #[error("I/O error: {0}")]
     IoError(#[from] io::Error),
 }

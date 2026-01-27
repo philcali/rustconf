@@ -4,6 +4,14 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Type};
 
+/// A struct field with serde attributes and documentation.
+pub struct StructField {
+    pub name: String,
+    pub ty: Type,
+    pub serde_attrs: Vec<String>,
+    pub doc_comment: Option<String>,
+}
+
 /// Format a token stream into a well-formatted Rust code string.
 ///
 /// This function uses prettyplease to format the generated code according
@@ -49,6 +57,83 @@ pub fn generate_struct(
             let field_ident = Ident::new(field_name, proc_macro2::Span::call_site());
             quote! {
                 pub #field_ident: #field_type
+            }
+        })
+        .collect();
+
+    // Build the struct with optional doc comment
+    let tokens = if let Some(doc) = doc_comment {
+        quote! {
+            #[doc = #doc]
+            #[derive(#(#derive_idents),*)]
+            pub struct #struct_name {
+                #(#field_defs),*
+            }
+        }
+    } else {
+        quote! {
+            #[derive(#(#derive_idents),*)]
+            pub struct #struct_name {
+                #(#field_defs),*
+            }
+        }
+    };
+
+    format_token_stream(tokens)
+}
+
+/// Generate a struct definition with serde attributes.
+///
+/// # Arguments
+/// * `name` - The name of the struct
+/// * `fields` - A vector of StructField with serde attributes
+/// * `derives` - A vector of trait names to derive
+/// * `doc_comment` - Optional documentation comment
+///
+/// # Returns
+/// A formatted Rust struct definition as a string
+pub fn generate_struct_with_serde(
+    name: &str,
+    fields: Vec<StructField>,
+    derives: Vec<&str>,
+    doc_comment: Option<&str>,
+) -> Result<String, syn::Error> {
+    let struct_name = Ident::new(name, proc_macro2::Span::call_site());
+
+    // Build derive attributes
+    let derive_idents: Vec<Ident> = derives
+        .iter()
+        .map(|d| Ident::new(d, proc_macro2::Span::call_site()))
+        .collect();
+
+    // Build fields with serde attributes
+    let field_defs: Vec<TokenStream> = fields
+        .iter()
+        .map(|field| {
+            let field_ident = Ident::new(&field.name, proc_macro2::Span::call_site());
+            let field_type = &field.ty;
+            
+            // Parse serde attributes
+            let serde_attrs: Vec<TokenStream> = field.serde_attrs
+                .iter()
+                .map(|attr| {
+                    let attr_tokens: TokenStream = attr.parse().unwrap_or_else(|_| quote! {});
+                    quote! { #[serde(#attr_tokens)] }
+                })
+                .collect();
+            
+            // Add doc comment if present
+            if let Some(ref doc) = field.doc_comment {
+                quote! {
+                    #[doc = #doc]
+                    #(#serde_attrs)*
+                    pub #field_ident: #field_type
+                }
+            } else {
+                quote! {
+                    #(#serde_attrs)*
+                    pub #field_ident: #field_type
+                }
             }
         })
         .collect();
@@ -358,5 +443,44 @@ mod tests {
 
         assert!(code.contains("pub type IntList = Vec<i32>"));
         assert!(code.contains("A list of integers"));
+    }
+
+    #[test]
+    fn test_generate_struct_with_serde() {
+        let fields = vec![
+            StructField {
+                name: "user_name".to_string(),
+                ty: parse_quote!(String),
+                serde_attrs: vec![r#"rename = "user-name""#.to_string()],
+                doc_comment: Some("The user's name".to_string()),
+            },
+            StructField {
+                name: "age".to_string(),
+                ty: parse_quote!(Option<u32>),
+                serde_attrs: vec![
+                    r#"skip_serializing_if = "Option::is_none""#.to_string(),
+                ],
+                doc_comment: None,
+            },
+        ];
+
+        let result = generate_struct_with_serde(
+            "User",
+            fields,
+            vec!["Debug", "Serialize", "Deserialize"],
+            Some("A user record"),
+        );
+
+        assert!(result.is_ok());
+        let code = result.unwrap();
+
+        assert!(code.contains("pub struct User"));
+        assert!(code.contains("A user record"));
+        assert!(code.contains("The user's name"));
+        assert!(code.contains("pub user_name: String"));
+        assert!(code.contains("pub age: Option<u32>"));
+        assert!(code.contains(r#"rename = "user-name""#));
+        assert!(code.contains(r#"skip_serializing_if = "Option::is_none""#));
+        assert!(code.contains("#[derive(Debug, Serialize, Deserialize)]"));
     }
 }

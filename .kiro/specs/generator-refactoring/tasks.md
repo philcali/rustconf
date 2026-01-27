@@ -113,16 +113,16 @@
 ## Phase 3: Formatting Integration
 
 ### 14. Integrate Formatting for Type Aliases (Refs: Requirements 3.1, 3.4)
-- [ ] 14.1 Update `TypeGenerator::generate_typedef()` to use `formatting::generate_type_alias()`
-- [ ] 14.2 Handle `syn::Type` conversion for base types
-- [ ] 14.3 Run tests to verify output is identical
-- [ ] 14.4 Compare generated code before/after
+- [x] 14.1 Update `TypeGenerator::generate_typedef()` to use `formatting::generate_type_alias()`
+- [x] 14.2 Handle `syn::Type` conversion for base types
+- [x] 14.3 Run tests to verify output is identical
+- [x] 14.4 Compare generated code before/after
 
 ### 15. Extend Formatting Module for Serde (Refs: Requirements 3.2, 3.3)
-- [ ] 15.1 Add `StructField` type to `formatting.rs` with serde attributes
-- [ ] 15.2 Add `generate_struct_with_serde()` function
-- [ ] 15.3 Add tests for new formatting functions
-- [ ] 15.4 Document the new API
+- [x] 15.1 Add `StructField` type to `formatting.rs` with serde attributes
+- [x] 15.2 Add `generate_struct_with_serde()` function
+- [x] 15.3 Add tests for new formatting functions
+- [x] 15.4 Document the new API
 
 ### 16. Integrate Formatting for Structs (Refs: Requirements 3.1, 3.4, 3.5)
 - [ ] 16.1 Update `TypeGenerator::generate_container()` to use formatting module
