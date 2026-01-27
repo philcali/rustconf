@@ -288,27 +288,3 @@ pub struct GeneratedFile {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod integration_test;
-
-#[cfg(test)]
-mod rpc_tests;
-
-#[cfg(test)]
-mod rpc_integration_test;
-
-#[cfg(test)]
-mod notification_tests;
-
-#[cfg(test)]
-mod notification_integration_test;
-
-#[cfg(test)]
-mod crud_tests;
-
-#[cfg(test)]
-mod url_path_tests;
-
-#[cfg(test)]
-mod url_path_example_test;

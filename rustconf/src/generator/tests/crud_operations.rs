@@ -1,8 +1,7 @@
-//! Unit tests for RESTCONF CRUD operation generation (Task 10.3)
+//! Tests for RESTCONF CRUD operation generation.
 
+use crate::generator::{CodeGenerator, GeneratorConfig};
 use crate::parser::{Container, DataNode, Leaf, List, TypeSpec, YangModule};
-
-use super::*;
 
 #[test]
 fn test_generate_crud_for_config_container() {

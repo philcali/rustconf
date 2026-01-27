@@ -1,8 +1,7 @@
 //! Unit tests for RPC generation (Task 10.1)
 
+use crate::generator::{CodeGenerator, GeneratorConfig};
 use crate::parser::{DataNode, Leaf, Rpc, TypeSpec, YangModule};
-
-use super::*;
 
 #[test]
 fn test_generate_rpc_with_no_input_or_output() {
