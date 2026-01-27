@@ -1,8 +1,7 @@
-//! Unit tests for notification type generation (Task 10.2)
+//! Unit tests for notification generation (Task 11.1)
 
+use crate::generator::{CodeGenerator, GeneratorConfig};
 use crate::parser::{DataNode, Leaf, Notification, TypeSpec, YangModule};
-
-use super::*;
 
 #[test]
 fn test_generate_notification_with_no_data() {
