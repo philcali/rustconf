@@ -15,6 +15,99 @@ pub use ast::*;
 pub use error::ParseError;
 pub use lexer::{Lexer, Token};
 
+/// Visitor for validating typedef references in data nodes.
+///
+/// This visitor traverses the data node tree and validates that all typedef
+/// references point to defined typedefs.
+struct TypedefRefValidator<'a> {
+    typedefs: &'a [TypeDef],
+}
+
+impl<'a> DataNodeVisitor for TypedefRefValidator<'a> {
+    type Error = ParseError;
+
+    fn visit_leaf(&mut self, leaf: &Leaf) -> Result<(), Self::Error> {
+        YangParser::validate_typespec_references(&leaf.type_spec, self.typedefs)
+    }
+
+    fn visit_leaf_list(&mut self, leaf_list: &LeafList) -> Result<(), Self::Error> {
+        YangParser::validate_typespec_references(&leaf_list.type_spec, self.typedefs)
+    }
+
+    // Use default implementations for container, list, choice, case
+    // which will recursively visit children
+}
+
+/// Visitor for validating grouping references in data nodes.
+///
+/// This visitor traverses the data node tree and validates that all uses
+/// statements reference defined groupings.
+struct GroupingRefValidator<'a> {
+    groupings: &'a [Grouping],
+}
+
+impl<'a> DataNodeVisitor for GroupingRefValidator<'a> {
+    type Error = ParseError;
+
+    fn visit_uses(&mut self, uses: &Uses) -> Result<(), Self::Error> {
+        // Check if the grouping is defined
+        if !self.groupings.iter().any(|g| g.name == uses.name) {
+            return Err(ParseError::SemanticError {
+                message: format!("Undefined grouping reference: {}", uses.name),
+            });
+        }
+        Ok(())
+    }
+
+    // Use default implementations for container, list, choice, case
+    // which will recursively visit children
+}
+
+/// Visitor for validating leafref paths in data nodes.
+///
+/// This visitor traverses the data node tree and validates that all leafref
+/// paths are non-empty.
+struct LeafrefPathValidator;
+
+impl DataNodeVisitor for LeafrefPathValidator {
+    type Error = ParseError;
+
+    fn visit_leaf(&mut self, leaf: &Leaf) -> Result<(), Self::Error> {
+        YangParser::validate_typespec_leafref_paths(&leaf.type_spec)
+    }
+
+    fn visit_leaf_list(&mut self, leaf_list: &LeafList) -> Result<(), Self::Error> {
+        YangParser::validate_typespec_leafref_paths(&leaf_list.type_spec)
+    }
+
+    // Use default implementations for container, list, choice, case
+    // which will recursively visit children
+}
+
+/// Visitor for validating type constraints in data nodes.
+///
+/// This visitor traverses the data node tree and validates that all type
+/// constraints (range, length) are well-formed (min <= max).
+struct ConstraintValidator<'a> {
+    parser: &'a YangParser,
+}
+
+impl<'a> DataNodeVisitor for ConstraintValidator<'a> {
+    type Error = ParseError;
+
+    fn visit_leaf(&mut self, leaf: &Leaf) -> Result<(), Self::Error> {
+        self.parser.validate_typespec_constraints(&leaf.type_spec)
+    }
+
+    fn visit_leaf_list(&mut self, leaf_list: &LeafList) -> Result<(), Self::Error> {
+        self.parser
+            .validate_typespec_constraints(&leaf_list.type_spec)
+    }
+
+    // Use default implementations for container, list, choice, case
+    // which will recursively visit children
+}
+
 /// YANG parser with configurable search paths for module resolution.
 pub struct YangParser {
     search_paths: Vec<PathBuf>,
@@ -288,10 +381,11 @@ impl YangParser {
             Self::validate_typespec_references(&typedef.type_spec, &module.typedefs)?;
         }
 
-        // Check typedefs in data nodes
-        for data_node in &module.data_nodes {
-            Self::validate_data_node_typedef_references(data_node, &module.typedefs)?;
-        }
+        // Check typedefs in data nodes using visitor pattern
+        let mut validator = TypedefRefValidator {
+            typedefs: &module.typedefs,
+        };
+        walk_data_nodes(&module.data_nodes, &mut validator)?;
 
         Ok(())
     }
@@ -321,99 +415,20 @@ impl YangParser {
         Ok(())
     }
 
-    /// Validate typedef references in a data node.
-    fn validate_data_node_typedef_references(
-        data_node: &DataNode,
-        typedefs: &[TypeDef],
-    ) -> Result<(), ParseError> {
-        match data_node {
-            DataNode::Leaf(leaf) => {
-                Self::validate_typespec_references(&leaf.type_spec, typedefs)?;
-            }
-            DataNode::LeafList(leaf_list) => {
-                Self::validate_typespec_references(&leaf_list.type_spec, typedefs)?;
-            }
-            DataNode::Container(container) => {
-                for child in &container.children {
-                    Self::validate_data_node_typedef_references(child, typedefs)?;
-                }
-            }
-            DataNode::List(list) => {
-                for child in &list.children {
-                    Self::validate_data_node_typedef_references(child, typedefs)?;
-                }
-            }
-            DataNode::Choice(choice) => {
-                for case in &choice.cases {
-                    for child in &case.data_nodes {
-                        Self::validate_data_node_typedef_references(child, typedefs)?;
-                    }
-                }
-            }
-            DataNode::Case(case) => {
-                for child in &case.data_nodes {
-                    Self::validate_data_node_typedef_references(child, typedefs)?;
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
     /// Validate that all grouping references are defined.
     fn validate_grouping_references(&self, module: &YangModule) -> Result<(), ParseError> {
-        for data_node in &module.data_nodes {
-            Self::validate_data_node_grouping_references(data_node, &module.groupings)?;
-        }
+        let mut validator = GroupingRefValidator {
+            groupings: &module.groupings,
+        };
+
+        // Check groupings in module data nodes
+        walk_data_nodes(&module.data_nodes, &mut validator)?;
 
         // Also check groupings themselves for nested uses
         for grouping in &module.groupings {
-            for data_node in &grouping.data_nodes {
-                Self::validate_data_node_grouping_references(data_node, &module.groupings)?;
-            }
+            walk_data_nodes(&grouping.data_nodes, &mut validator)?;
         }
 
-        Ok(())
-    }
-
-    /// Validate grouping references in a data node.
-    fn validate_data_node_grouping_references(
-        data_node: &DataNode,
-        groupings: &[Grouping],
-    ) -> Result<(), ParseError> {
-        match data_node {
-            DataNode::Uses(uses) => {
-                // Check if the grouping is defined
-                if !groupings.iter().any(|g| g.name == uses.name) {
-                    return Err(ParseError::SemanticError {
-                        message: format!("Undefined grouping reference: {}", uses.name),
-                    });
-                }
-            }
-            DataNode::Container(container) => {
-                for child in &container.children {
-                    Self::validate_data_node_grouping_references(child, groupings)?;
-                }
-            }
-            DataNode::List(list) => {
-                for child in &list.children {
-                    Self::validate_data_node_grouping_references(child, groupings)?;
-                }
-            }
-            DataNode::Choice(choice) => {
-                for case in &choice.cases {
-                    for child in &case.data_nodes {
-                        Self::validate_data_node_grouping_references(child, groupings)?;
-                    }
-                }
-            }
-            DataNode::Case(case) => {
-                for child in &case.data_nodes {
-                    Self::validate_data_node_grouping_references(child, groupings)?;
-                }
-            }
-            _ => {}
-        }
         Ok(())
     }
 
@@ -421,45 +436,8 @@ impl YangParser {
     /// Note: This is a simplified validation that just checks the path is not empty.
     /// Full path validation would require resolving the path against the data tree.
     fn validate_leafref_paths(&self, module: &YangModule) -> Result<(), ParseError> {
-        for data_node in &module.data_nodes {
-            Self::validate_data_node_leafref_paths(data_node)?;
-        }
-        Ok(())
-    }
-
-    /// Validate leafref paths in a data node.
-    fn validate_data_node_leafref_paths(data_node: &DataNode) -> Result<(), ParseError> {
-        match data_node {
-            DataNode::Leaf(leaf) => {
-                Self::validate_typespec_leafref_paths(&leaf.type_spec)?;
-            }
-            DataNode::LeafList(leaf_list) => {
-                Self::validate_typespec_leafref_paths(&leaf_list.type_spec)?;
-            }
-            DataNode::Container(container) => {
-                for child in &container.children {
-                    Self::validate_data_node_leafref_paths(child)?;
-                }
-            }
-            DataNode::List(list) => {
-                for child in &list.children {
-                    Self::validate_data_node_leafref_paths(child)?;
-                }
-            }
-            DataNode::Choice(choice) => {
-                for case in &choice.cases {
-                    for child in &case.data_nodes {
-                        Self::validate_data_node_leafref_paths(child)?;
-                    }
-                }
-            }
-            DataNode::Case(case) => {
-                for child in &case.data_nodes {
-                    Self::validate_data_node_leafref_paths(child)?;
-                }
-            }
-            _ => {}
-        }
+        let mut validator = LeafrefPathValidator;
+        walk_data_nodes(&module.data_nodes, &mut validator)?;
         Ok(())
     }
 
@@ -490,10 +468,9 @@ impl YangParser {
             self.validate_typespec_constraints(&typedef.type_spec)?;
         }
 
-        // Validate constraints in data nodes
-        for data_node in &module.data_nodes {
-            self.validate_data_node_constraints(data_node)?;
-        }
+        // Validate constraints in data nodes using visitor
+        let mut validator = ConstraintValidator { parser: self };
+        walk_data_nodes(&module.data_nodes, &mut validator)?;
 
         Ok(())
     }
@@ -554,42 +531,6 @@ impl YangParser {
                     ),
                 });
             }
-        }
-        Ok(())
-    }
-
-    /// Validate constraints in a data node.
-    fn validate_data_node_constraints(&self, data_node: &DataNode) -> Result<(), ParseError> {
-        match data_node {
-            DataNode::Leaf(leaf) => {
-                self.validate_typespec_constraints(&leaf.type_spec)?;
-            }
-            DataNode::LeafList(leaf_list) => {
-                self.validate_typespec_constraints(&leaf_list.type_spec)?;
-            }
-            DataNode::Container(container) => {
-                for child in &container.children {
-                    self.validate_data_node_constraints(child)?;
-                }
-            }
-            DataNode::List(list) => {
-                for child in &list.children {
-                    self.validate_data_node_constraints(child)?;
-                }
-            }
-            DataNode::Choice(choice) => {
-                for case in &choice.cases {
-                    for child in &case.data_nodes {
-                        self.validate_data_node_constraints(child)?;
-                    }
-                }
-            }
-            DataNode::Case(case) => {
-                for child in &case.data_nodes {
-                    self.validate_data_node_constraints(child)?;
-                }
-            }
-            _ => {}
         }
         Ok(())
     }
