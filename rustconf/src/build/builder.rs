@@ -63,6 +63,17 @@ impl RustconfBuilder {
         self
     }
 
+    /// Enable or disable RESTful RPC generation.
+    ///
+    /// When enabled, generates functional HTTP client implementations for RPCs.
+    /// When disabled (default), generates stub functions returning NotImplemented errors.
+    pub fn enable_restful_rpcs(mut self, enable: bool) -> Self {
+        if enable {
+            self.config.enable_restful_rpcs();
+        }
+        self
+    }
+
     /// Generate Rust bindings from configured YANG files.
     pub fn generate(self) -> Result<(), BuildError> {
         // Validate configuration

@@ -407,3 +407,450 @@ fn test_rpc_with_empty_input_list() {
     // Function should have no parameters and return unit
     assert!(content.contains("pub async fn ping() -> Result<(), RpcError>"));
 }
+
+#[test]
+fn test_http_method_generated_when_restful_rpcs_enabled() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpMethod enum is generated
+    assert!(content.contains("pub enum HttpMethod {"));
+    assert!(content.contains("/// HTTP GET method."));
+    assert!(content.contains("GET,"));
+    assert!(content.contains("/// HTTP POST method."));
+    assert!(content.contains("POST,"));
+    assert!(content.contains("/// HTTP PUT method."));
+    assert!(content.contains("PUT,"));
+    assert!(content.contains("/// HTTP DELETE method."));
+    assert!(content.contains("DELETE,"));
+    assert!(content.contains("/// HTTP PATCH method."));
+    assert!(content.contains("PATCH,"));
+
+    // Check that HttpMethod has proper derives
+    assert!(content.contains("HTTP methods for RESTful operations."));
+}
+
+#[test]
+fn test_http_method_not_generated_when_restful_rpcs_disabled() {
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpMethod enum is NOT generated
+    assert!(!content.contains("pub enum HttpMethod {"));
+    assert!(!content.contains("HTTP methods for RESTful operations."));
+}
+
+#[test]
+fn test_http_request_generated_when_restful_rpcs_enabled() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpRequest struct is generated
+    assert!(content.contains("pub struct HttpRequest {"));
+    assert!(content.contains("/// HTTP request for RESTful operations."));
+
+    // Check all fields are public
+    assert!(content.contains("pub method: HttpMethod,"));
+    assert!(content.contains("pub url: String,"));
+    assert!(content.contains("pub headers: Vec<(String, String)>,"));
+    assert!(content.contains("pub body: Option<Vec<u8>>,"));
+
+    // Check field documentation
+    assert!(content.contains("/// The HTTP method for this request."));
+    assert!(content.contains("/// The target URL for this request."));
+    assert!(content.contains("/// HTTP headers as key-value pairs."));
+    assert!(content.contains("/// Optional request body as raw bytes."));
+
+    // Check struct documentation mentions custom transport access
+    assert!(content.contains("All fields are public to allow"));
+    assert!(content.contains("custom transport implementations to access request details."));
+}
+
+#[test]
+fn test_http_request_not_generated_when_restful_rpcs_disabled() {
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpRequest struct is NOT generated
+    assert!(!content.contains("pub struct HttpRequest {"));
+    assert!(!content.contains("HTTP request for RESTful operations."));
+}
+
+#[test]
+fn test_http_response_generated_when_restful_rpcs_enabled() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpResponse struct is generated
+    assert!(content.contains("pub struct HttpResponse {"));
+    assert!(content.contains("/// HTTP response from RESTful operations."));
+
+    // Check all fields are public
+    assert!(content.contains("pub status_code: u16,"));
+    assert!(content.contains("pub headers: Vec<(String, String)>,"));
+    assert!(content.contains("pub body: Vec<u8>,"));
+
+    // Check field documentation
+    assert!(content.contains("/// The HTTP status code (e.g., 200, 404, 500)."));
+    assert!(content.contains("/// HTTP headers as key-value pairs."));
+    assert!(content.contains("/// Response body as raw bytes."));
+
+    // Check struct documentation mentions custom transport access
+    assert!(content.contains("All fields are public to allow custom transport implementations"));
+}
+
+#[test]
+fn test_http_response_not_generated_when_restful_rpcs_disabled() {
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpResponse struct is NOT generated
+    assert!(!content.contains("pub struct HttpResponse {"));
+    assert!(!content.contains("HTTP response from RESTful operations."));
+}
+
+#[test]
+fn test_http_transport_generated_when_restful_rpcs_enabled() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpTransport trait is generated
+    assert!(content.contains("pub trait HttpTransport: Send + Sync {"));
+    assert!(content.contains("/// HTTP transport abstraction for executing RESTful operations."));
+
+    // Check async_trait macro is used
+    assert!(content.contains("#[async_trait::async_trait]"));
+
+    // Check execute method signature
+    assert!(content.contains(
+        "async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError>;"
+    ));
+
+    // Check comprehensive documentation
+    assert!(content.contains("/// This trait provides a pluggable interface for HTTP execution"));
+    assert!(content.contains("/// # Thread Safety"));
+    assert!(content.contains("/// Implementations must be `Send + Sync`"));
+    assert!(content.contains("/// # Examples"));
+    assert!(content.contains("/// ## Using a built-in transport adapter"));
+    assert!(content.contains("/// ## Implementing a custom transport"));
+    assert!(content.contains("/// # Error Handling"));
+
+    // Check example code in documentation
+    assert!(content.contains("let transport = reqwest_adapter::ReqwestTransport::new();"));
+    assert!(content.contains("let client = RestconfClient::new("));
+    assert!(content.contains("struct MyCustomTransport {"));
+    assert!(content.contains("impl HttpTransport for MyCustomTransport {"));
+
+    // Check method documentation
+    assert!(content.contains("/// Execute an HTTP request and return the response."));
+    assert!(content.contains("/// # Arguments"));
+    assert!(content.contains("/// * `request` - The HTTP request to execute"));
+    assert!(content.contains("/// # Returns"));
+    assert!(content.contains("/// # Errors"));
+    assert!(content.contains("/// Returns `RpcError::TransportError` for:"));
+    assert!(content.contains("/// - Network connectivity issues"));
+    assert!(content.contains("/// - DNS resolution failures"));
+    assert!(content.contains("/// - Connection timeouts"));
+    assert!(content.contains("/// - TLS/SSL errors"));
+}
+
+#[test]
+fn test_http_transport_not_generated_when_restful_rpcs_disabled() {
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check HttpTransport trait is NOT generated
+    assert!(!content.contains("pub trait HttpTransport"));
+    assert!(!content.contains("HTTP transport abstraction for executing RESTful operations."));
+    assert!(!content.contains("#[async_trait::async_trait]"));
+}
+
+#[test]
+fn test_request_interceptor_generated_when_restful_rpcs_enabled() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check RequestInterceptor trait is generated
+    assert!(content.contains("pub trait RequestInterceptor: Send + Sync {"));
+    assert!(content.contains("/// Request interceptor for modifying HTTP requests and responses."));
+
+    // Check async_trait macro is used
+    assert!(content.contains("#[async_trait::async_trait]"));
+
+    // Check before_request method signature
+    assert!(content.contains(
+        "async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError>;"
+    ));
+
+    // Check after_response method signature
+    assert!(content.contains(
+        "async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError>;"
+    ));
+
+    // Check comprehensive documentation
+    assert!(content
+        .contains("/// This trait provides hooks for intercepting and modifying HTTP requests"));
+    assert!(content.contains("/// # Thread Safety"));
+    assert!(content.contains("/// Implementations must be `Send + Sync`"));
+    assert!(content.contains("/// # Execution Order"));
+    assert!(content.contains("/// - `before_request` hooks are called in registration order"));
+    assert!(
+        content.contains("/// - `after_response` hooks are called in reverse registration order")
+    );
+    assert!(content.contains("/// # Examples"));
+    assert!(content.contains("/// ## Basic authentication interceptor"));
+    assert!(content.contains("/// ## Logging interceptor"));
+    assert!(content.contains("/// # Error Handling"));
+
+    // Check example code in documentation
+    assert!(content.contains("struct AuthInterceptor {"));
+    assert!(content.contains("token: String,"));
+    assert!(content.contains("impl RequestInterceptor for AuthInterceptor {"));
+    assert!(content.contains("request.headers.push(("));
+    assert!(content.contains("\"Authorization\".to_string(),"));
+    assert!(content.contains("format!(\"Bearer {}\", self.token)"));
+    assert!(content.contains("struct LoggingInterceptor;"));
+    assert!(content.contains(".with_interceptor(AuthInterceptor {"));
+
+    // Check method documentation
+    assert!(content.contains("/// Called before sending an HTTP request."));
+    assert!(content.contains("/// This method receives a mutable reference to the `HttpRequest`"));
+    assert!(content.contains("/// Called after receiving an HTTP response."));
+    assert!(
+        content.contains("/// This method receives an immutable reference to the `HttpResponse`")
+    );
+    assert!(content.contains("/// # Arguments"));
+    assert!(content.contains("/// * `request` - A mutable reference to the HTTP request"));
+    assert!(content.contains("/// * `response` - An immutable reference to the HTTP response"));
+    assert!(content.contains("/// # Returns"));
+    assert!(content.contains("/// # Errors"));
+    assert!(content.contains("/// - Authentication token is missing or expired"));
+    assert!(content.contains("/// - Response validation fails"));
+}
+
+#[test]
+fn test_request_interceptor_not_generated_when_restful_rpcs_disabled() {
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check RequestInterceptor trait is NOT generated
+    assert!(!content.contains("pub trait RequestInterceptor"));
+    assert!(!content.contains("Request interceptor for modifying HTTP requests and responses."));
+    assert!(!content.contains("async fn before_request"));
+    assert!(!content.contains("async fn after_response"));
+}

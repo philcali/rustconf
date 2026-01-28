@@ -97,6 +97,420 @@ impl<'a> OperationsGenerator<'a> {
 use crate::parser::DataNode;
 
 impl<'a> OperationsGenerator<'a> {
+    /// Generate HTTP method enum for RESTful RPCs.
+    pub fn generate_http_method(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// HTTP methods for RESTful operations.\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+        derives.push("Copy");
+        derives.push("PartialEq");
+        derives.push("Eq");
+
+        output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+
+        output.push_str("pub enum HttpMethod {\n");
+        output.push_str("    /// HTTP GET method.\n");
+        output.push_str("    GET,\n");
+        output.push_str("    /// HTTP POST method.\n");
+        output.push_str("    POST,\n");
+        output.push_str("    /// HTTP PUT method.\n");
+        output.push_str("    PUT,\n");
+        output.push_str("    /// HTTP DELETE method.\n");
+        output.push_str("    DELETE,\n");
+        output.push_str("    /// HTTP PATCH method.\n");
+        output.push_str("    PATCH,\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate HTTP request struct for RESTful RPCs.
+    pub fn generate_http_request(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// HTTP request for RESTful operations.\n");
+        output.push_str("///\n");
+        output
+            .push_str("/// This struct represents an HTTP request with all necessary components\n");
+        output
+            .push_str("/// for executing RESTful RPC operations. All fields are public to allow\n");
+        output.push_str("/// custom transport implementations to access request details.\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+
+        output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+
+        output.push_str("pub struct HttpRequest {\n");
+        output.push_str("    /// The HTTP method for this request.\n");
+        output.push_str("    pub method: HttpMethod,\n");
+        output.push_str("    /// The target URL for this request.\n");
+        output.push_str("    pub url: String,\n");
+        output.push_str("    /// HTTP headers as key-value pairs.\n");
+        output.push_str("    pub headers: Vec<(String, String)>,\n");
+        output.push_str("    /// Optional request body as raw bytes.\n");
+        output.push_str("    pub body: Option<Vec<u8>>,\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate HTTP response struct for RESTful RPCs.
+    pub fn generate_http_response(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// HTTP response from RESTful operations.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This struct represents an HTTP response received from a RESTCONF server.\n",
+        );
+        output.push_str("/// All fields are public to allow custom transport implementations to\n");
+        output.push_str("/// construct responses and allow users to inspect response details.\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+
+        output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+
+        output.push_str("pub struct HttpResponse {\n");
+        output.push_str("    /// The HTTP status code (e.g., 200, 404, 500).\n");
+        output.push_str("    pub status_code: u16,\n");
+        output.push_str("    /// HTTP headers as key-value pairs.\n");
+        output.push_str("    pub headers: Vec<(String, String)>,\n");
+        output.push_str("    /// Response body as raw bytes.\n");
+        output.push_str("    pub body: Vec<u8>,\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate HttpTransport trait for RESTful RPCs.
+    pub fn generate_http_transport(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// HTTP transport abstraction for executing RESTful operations.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This trait provides a pluggable interface for HTTP execution, allowing users\n",
+        );
+        output.push_str(
+            "/// to choose between different HTTP client libraries (reqwest, hyper) or implement\n",
+        );
+        output.push_str("/// custom transport logic.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Thread Safety\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// Implementations must be `Send + Sync` to support concurrent usage across\n",
+        );
+        output.push_str("/// multiple async tasks and threads.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Examples\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Using a built-in transport adapter\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// #[tokio::main]\n");
+        output.push_str("/// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("///     // Create a transport using the reqwest adapter\n");
+        output.push_str("///     let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Create a client with the transport\n");
+        output.push_str("///     let client = RestconfClient::new(\n");
+        output.push_str("///         \"https://device.example.com\",\n");
+        output.push_str("///         transport\n");
+        output.push_str("///     );\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Use the client to call RPC operations\n");
+        output.push_str("///     // let result = some_rpc_function(&client, input).await?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     Ok(())\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Implementing a custom transport\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use async_trait::async_trait;\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// struct MyCustomTransport {\n");
+        output.push_str("///     // Your custom HTTP client or configuration\n");
+        output.push_str("/// }\n");
+        output.push_str("///\n");
+        output.push_str("/// #[async_trait]\n");
+        output.push_str("/// impl HttpTransport for MyCustomTransport {\n");
+        output.push_str("///     async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError> {\n");
+        output.push_str("///         // Your custom HTTP execution logic\n");
+        output.push_str("///         // - Convert HttpRequest to your client's request format\n");
+        output.push_str("///         // - Execute the HTTP request\n");
+        output.push_str("///         // - Convert the response to HttpResponse\n");
+        output.push_str("///         // - Handle errors and convert to RpcError\n");
+        output.push_str("///         \n");
+        output.push_str("///         unimplemented!(\"Implement your custom transport logic\")\n");
+        output.push_str("///     }\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// # Error Handling\n");
+        output.push_str("///\n");
+        output.push_str("/// Implementations should convert transport-specific errors to `RpcError::TransportError`\n");
+        output.push_str("/// with descriptive error messages. Network errors, timeouts, and connection failures\n");
+        output.push_str("/// should all be mapped to this error variant.\n");
+        output.push_str("#[async_trait::async_trait]\n");
+        output.push_str("pub trait HttpTransport: Send + Sync {\n");
+        output.push_str("    /// Execute an HTTP request and return the response.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// This method takes an `HttpRequest` containing the HTTP method, URL, headers,\n");
+        output.push_str(
+            "    /// and optional body, executes the request using the underlying HTTP client,\n",
+        );
+        output.push_str(
+            "    /// and returns an `HttpResponse` with the status code, headers, and body.\n",
+        );
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `request` - The HTTP request to execute\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Returns `Ok(HttpResponse)` on successful execution, or `Err(RpcError)` if\n",
+        );
+        output.push_str("    /// the request fails due to network errors, timeouts, or other transport issues.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns `RpcError::TransportError` for:\n");
+        output.push_str("    /// - Network connectivity issues\n");
+        output.push_str("    /// - DNS resolution failures\n");
+        output.push_str("    /// - Connection timeouts\n");
+        output.push_str("    /// - TLS/SSL errors\n");
+        output.push_str("    /// - Invalid URLs\n");
+        output.push_str("    /// - Other transport-layer failures\n");
+        output.push_str("    async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError>;\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate RequestInterceptor trait for RESTful RPCs.
+    pub fn generate_request_interceptor(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// Request interceptor for modifying HTTP requests and responses.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This trait provides hooks for intercepting and modifying HTTP requests before\n",
+        );
+        output.push_str(
+            "/// they are sent and HTTP responses after they are received. This is useful for\n",
+        );
+        output.push_str("/// implementing cross-cutting concerns such as:\n");
+        output.push_str("///\n");
+        output.push_str("/// - Authentication (adding tokens, signing requests)\n");
+        output.push_str("/// - Logging and monitoring\n");
+        output.push_str("/// - Request/response transformation\n");
+        output.push_str("/// - Error handling and retry logic\n");
+        output.push_str("/// - Custom header injection\n");
+        output.push_str("///\n");
+        output.push_str("/// # Thread Safety\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// Implementations must be `Send + Sync` to support concurrent usage across\n",
+        );
+        output.push_str("/// multiple async tasks and threads.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Execution Order\n");
+        output.push_str("///\n");
+        output.push_str("/// When multiple interceptors are registered with a `RestconfClient`:\n");
+        output.push_str("/// - `before_request` hooks are called in registration order\n");
+        output.push_str("/// - `after_response` hooks are called in reverse registration order\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// If any interceptor returns an error, the request is aborted and the error\n",
+        );
+        output.push_str("/// is returned immediately without calling subsequent interceptors.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Examples\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Basic authentication interceptor\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use async_trait::async_trait;\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// struct AuthInterceptor {\n");
+        output.push_str("///     token: String,\n");
+        output.push_str("/// }\n");
+        output.push_str("///\n");
+        output.push_str("/// #[async_trait]\n");
+        output.push_str("/// impl RequestInterceptor for AuthInterceptor {\n");
+        output.push_str("///     async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {\n");
+        output.push_str("///         // Add authorization header to every request\n");
+        output.push_str("///         request.headers.push((\n");
+        output.push_str("///             \"Authorization\".to_string(),\n");
+        output.push_str("///             format!(\"Bearer {}\", self.token)\n");
+        output.push_str("///         ));\n");
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("///\n");
+        output.push_str("///     async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError> {\n");
+        output.push_str("///         // Validate response or perform logging\n");
+        output.push_str("///         if response.status_code == 401 {\n");
+        output.push_str(
+            "///             return Err(RpcError::Unauthorized(\"Token expired\".to_string()));\n",
+        );
+        output.push_str("///         }\n");
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("/// }\n");
+        output.push_str("///\n");
+        output.push_str("/// // Usage with RestconfClient\n");
+        output.push_str("/// let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str(
+            "/// let client = RestconfClient::new(\"https://device.example.com\", transport)\n",
+        );
+        output.push_str("///     .with_interceptor(AuthInterceptor {\n");
+        output.push_str("///         token: \"my-secret-token\".to_string(),\n");
+        output.push_str("///     });\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Logging interceptor\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use async_trait::async_trait;\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// struct LoggingInterceptor;\n");
+        output.push_str("///\n");
+        output.push_str("/// #[async_trait]\n");
+        output.push_str("/// impl RequestInterceptor for LoggingInterceptor {\n");
+        output.push_str("///     async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {\n");
+        output.push_str(
+            "///         println!(\"Sending {} request to {}\", request.method, request.url);\n",
+        );
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("///\n");
+        output.push_str("///     async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError> {\n");
+        output.push_str(
+            "///         println!(\"Received response with status {}\", response.status_code);\n",
+        );
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// # Error Handling\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// Both `before_request` and `after_response` can return errors to abort the\n",
+        );
+        output
+            .push_str("/// request or indicate validation failures. When an error is returned:\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// - From `before_request`: The HTTP request is not sent, and the error is\n",
+        );
+        output.push_str("///   returned to the caller immediately\n");
+        output
+            .push_str("/// - From `after_response`: The response is discarded, and the error is\n");
+        output.push_str("///   returned to the caller immediately\n");
+        output.push_str("#[async_trait::async_trait]\n");
+        output.push_str("pub trait RequestInterceptor: Send + Sync {\n");
+        output.push_str("    /// Called before sending an HTTP request.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method receives a mutable reference to the `HttpRequest`, allowing\n",
+        );
+        output.push_str(
+            "    /// the interceptor to modify the request before it is sent. Common use cases\n",
+        );
+        output.push_str(
+            "    /// include adding authentication headers, modifying URLs, or injecting\n",
+        );
+        output.push_str("    /// custom headers.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// * `request` - A mutable reference to the HTTP request that will be sent\n",
+        );
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Returns `Ok(())` to proceed with the request, or `Err(RpcError)` to abort\n",
+        );
+        output.push_str("    /// the request and return the error to the caller.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Return an error to abort the request. Common error scenarios:\n");
+        output.push_str("    /// - Authentication token is missing or expired\n");
+        output.push_str("    /// - Request validation fails\n");
+        output.push_str("    /// - Rate limiting is triggered\n");
+        output.push_str("    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError>;\n\n");
+        output.push_str("    /// Called after receiving an HTTP response.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method receives an immutable reference to the `HttpResponse`, allowing\n",
+        );
+        output.push_str(
+            "    /// the interceptor to inspect the response and perform validation or logging.\n",
+        );
+        output.push_str(
+            "    /// The response cannot be modified at this stage since the RPC function will\n",
+        );
+        output.push_str("    /// handle deserialization.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `response` - An immutable reference to the HTTP response that was received\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Returns `Ok(())` to proceed with response processing, or `Err(RpcError)` to\n",
+        );
+        output.push_str("    /// abort and return the error to the caller.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Return an error to abort response processing. Common error scenarios:\n",
+        );
+        output.push_str("    /// - Response validation fails\n");
+        output.push_str("    /// - Unexpected status code\n");
+        output.push_str("    /// - Missing required headers\n");
+        output.push_str("    async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError>;\n");
+        output.push_str("}\n");
+
+        output
+    }
+
     /// Generate RPC error type.
     pub fn generate_rpc_error(&self) -> String {
         let mut output = String::new();

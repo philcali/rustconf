@@ -155,6 +155,21 @@ impl CodeGenerator {
         // Generate RPC operations and CRUD operations
         if !module.rpcs.is_empty() || !module.data_nodes.is_empty() {
             let ops_gen = operations::OperationsGenerator::new(&self.config);
+
+            // Generate HTTP abstractions if RESTful RPCs are enabled
+            if self.config.enable_restful_rpcs {
+                content.push_str(&ops_gen.generate_http_method());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_http_request());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_http_response());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_http_transport());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_request_interceptor());
+                content.push('\n');
+            }
+
             content.push_str(&ops_gen.generate_rpc_error());
             content.push('\n');
             content.push_str(&ops_gen.generate_operations_module(module)?);
