@@ -59,10 +59,7 @@ impl<'a> crate::parser::DataNodeVisitor for ValidationTypeCollector<'a> {
         Ok(())
     }
 
-    fn visit_leaf_list(
-        &mut self,
-        leaf_list: &crate::parser::LeafList,
-    ) -> Result<(), Self::Error> {
+    fn visit_leaf_list(&mut self, leaf_list: &crate::parser::LeafList) -> Result<(), Self::Error> {
         self.collect_from_typespec(&leaf_list.type_spec);
         Ok(())
     }
