@@ -17,7 +17,7 @@ mod operations;
 mod paths;
 mod types;
 
-pub use config::GeneratorConfig;
+pub use config::{GeneratorConfig, NamespaceMode};
 pub use error::GeneratorError;
 
 /// Code generator that transforms YANG AST into Rust code.

@@ -1,6 +1,6 @@
 //! Integration tests for generated code compilation (Task 12.1-12.3)
 
-use crate::generator::{CodeGenerator, GeneratorConfig};
+use crate::generator::{CodeGenerator, GeneratorConfig, NamespaceMode};
 use crate::parser::{Container, DataNode, Leaf, Notification, Rpc, TypeSpec, YangModule};
 use std::fs;
 use tempfile::TempDir;
@@ -441,6 +441,8 @@ fn test_generated_notification_code_compiles() {
         derive_debug: true,
         derive_clone: true,
         enable_namespace_prefixes: false,
+        enable_restful_rpcs: false,
+        restful_namespace_mode: NamespaceMode::default(),
     };
 
     let generator = CodeGenerator::new(config);

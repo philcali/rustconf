@@ -6,7 +6,7 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
 
 ## Tasks
 
-- [ ] 1. Extend configuration API and data models
+- [x] 1. Extend configuration API and data models
   - Add `enable_restful_rpcs`, `restful_namespace_mode`, and related fields to `GeneratorConfig`
   - Implement `NamespaceMode` enum with `Enabled` and `Disabled` variants
   - Add builder methods: `enable_restful_rpcs()` and `restful_namespace_mode()`

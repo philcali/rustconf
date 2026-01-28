@@ -123,6 +123,16 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    InvalidInput(String),\n");
         output.push_str("    /// Operation not implemented.\n");
         output.push_str("    NotImplemented,\n");
+        output.push_str("    /// HTTP transport error.\n");
+        output.push_str("    TransportError(String),\n");
+        output.push_str("    /// JSON deserialization error.\n");
+        output.push_str("    DeserializationError(String),\n");
+        output.push_str("    /// Unauthorized access.\n");
+        output.push_str("    Unauthorized(String),\n");
+        output.push_str("    /// Resource not found.\n");
+        output.push_str("    NotFound(String),\n");
+        output.push_str("    /// Unknown error.\n");
+        output.push_str("    UnknownError(String),\n");
         output.push_str("}\n\n");
 
         output.push_str("impl std::fmt::Display for RpcError {\n");
@@ -139,6 +149,21 @@ impl<'a> OperationsGenerator<'a> {
         );
         output.push_str(
             "            RpcError::NotImplemented => write!(f, \"Operation not implemented\"),\n",
+        );
+        output.push_str(
+            "            RpcError::TransportError(msg) => write!(f, \"Transport error: {}\", msg),\n",
+        );
+        output.push_str(
+            "            RpcError::DeserializationError(msg) => write!(f, \"Deserialization error: {}\", msg),\n",
+        );
+        output.push_str(
+            "            RpcError::Unauthorized(msg) => write!(f, \"Unauthorized: {}\", msg),\n",
+        );
+        output.push_str(
+            "            RpcError::NotFound(msg) => write!(f, \"Not found: {}\", msg),\n",
+        );
+        output.push_str(
+            "            RpcError::UnknownError(msg) => write!(f, \"Unknown error: {}\", msg),\n",
         );
         output.push_str("        }\n");
         output.push_str("    }\n");

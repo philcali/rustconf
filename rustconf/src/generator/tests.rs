@@ -115,9 +115,11 @@ fn test_write_files_creates_output_directory() {
 }
 
 // Submodules for organized tests
+mod config_validation;
 mod crud_operations;
 mod integration;
 mod notifications;
+mod rpc_error_generation;
 mod rpc_operations;
 mod type_generation;
 mod url_path;
