@@ -181,33 +181,33 @@
 - [x] 23.5 Add tests for visitor pattern
 
 ### 24. Refactor Typedef Validation (Refs: Requirements 5.3, 5.4, 5.5)
-- [ ] 24.1 Create `TypedefRefValidator` struct implementing `DataNodeVisitor`
-- [ ] 24.2 Update `validate_typedef_references()` to use visitor
-- [ ] 24.3 Remove old `validate_data_node_typedef_references()` method
-- [ ] 24.4 Run validation tests to verify behavior
+- [x] 24.1 Create `TypedefRefValidator` struct implementing `DataNodeVisitor`
+- [x] 24.2 Update `validate_typedef_references()` to use visitor
+- [x] 24.3 Remove old `validate_data_node_typedef_references()` method
+- [x] 24.4 Run validation tests to verify behavior
 
 ### 25. Refactor Grouping Validation (Refs: Requirements 5.3, 5.4, 5.5)
-- [ ] 25.1 Create `GroupingRefValidator` struct implementing `DataNodeVisitor`
-- [ ] 25.2 Update `validate_grouping_references()` to use visitor
-- [ ] 25.3 Remove old `validate_data_node_grouping_references()` method
-- [ ] 25.4 Run validation tests to verify behavior
+- [x] 25.1 Create `GroupingRefValidator` struct implementing `DataNodeVisitor`
+- [x] 25.2 Update `validate_grouping_references()` to use visitor
+- [x] 25.3 Remove old `validate_data_node_grouping_references()` method
+- [x] 25.4 Run validation tests to verify behavior
 
 ### 26. Refactor Leafref Validation (Refs: Requirements 5.3, 5.4, 5.5)
-- [ ] 26.1 Create `LeafrefPathValidator` struct implementing `DataNodeVisitor`
-- [ ] 26.2 Update `validate_leafref_paths()` to use visitor
-- [ ] 26.3 Remove old `validate_data_node_leafref_paths()` method
-- [ ] 26.4 Run validation tests to verify behavior
+- [x] 26.1 Create `LeafrefPathValidator` struct implementing `DataNodeVisitor`
+- [x] 26.2 Update `validate_leafref_paths()` to use visitor
+- [x] 26.3 Remove old `validate_data_node_leafref_paths()` method
+- [x] 26.4 Run validation tests to verify behavior
 
 ### 27. Refactor Constraint Validation (Refs: Requirements 5.3, 5.4, 5.5, 5.6)
-- [ ] 27.1 Create `ConstraintValidator` struct implementing `DataNodeVisitor`
-- [ ] 27.2 Update `validate_data_node_constraints()` to use visitor
-- [ ] 27.3 Remove old recursive constraint validation methods
-- [ ] 27.4 Run validation tests to verify behavior
+- [x] 27.1 Create `ConstraintValidator` struct implementing `DataNodeVisitor`
+- [x] 27.2 Update `validate_data_node_constraints()` to use visitor
+- [x] 27.3 Remove old recursive constraint validation methods
+- [x] 27.4 Run validation tests to verify behavior
 
 ### 28. Verify Parser Improvements (Refs: Requirements 5.6)
-- [ ] 28.1 Run all parser tests
-- [ ] 28.2 Verify at least 30% code reduction in parser/mod.rs
-- [ ] 28.3 Document the visitor pattern usage
+- [x] 28.1 Run all parser tests
+- [x] 28.2 Verify code duplication reduction in parser/mod.rs
+- [x] 28.3 Document the visitor pattern usage
 
 ## Phase 6: Validation Type Collection
 
