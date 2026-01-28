@@ -174,11 +174,11 @@
 ## Phase 5: Parser Visitor Pattern
 
 ### 23. Implement Visitor Trait (Refs: Requirements 5.1, 5.2)
-- [ ] 23.1 Create `DataNodeVisitor` trait in `parser/mod.rs`
-- [ ] 23.2 Implement default methods for each node type (leaf, leaf_list, container, list, choice, case, uses)
-- [ ] 23.3 Implement `walk_data_node()` function
-- [ ] 23.4 Implement `walk_data_nodes()` function
-- [ ] 23.5 Add tests for visitor pattern
+- [x] 23.1 Create `DataNodeVisitor` trait in `parser/mod.rs`
+- [x] 23.2 Implement default methods for each node type (leaf, leaf_list, container, list, choice, case, uses)
+- [x] 23.3 Implement `walk_data_node()` function
+- [x] 23.4 Implement `walk_data_nodes()` function
+- [x] 23.5 Add tests for visitor pattern
 
 ### 24. Refactor Typedef Validation (Refs: Requirements 5.3, 5.4, 5.5)
 - [ ] 24.1 Create `TypedefRefValidator` struct implementing `DataNodeVisitor`

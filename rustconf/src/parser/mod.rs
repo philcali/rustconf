@@ -733,6 +733,148 @@ impl Default for YangParser {
     }
 }
 
+/// Visitor trait for traversing data nodes in a YANG module.
+///
+/// This trait provides a way to traverse the data node tree without duplicating
+/// the traversal logic. Implement this trait to perform operations on data nodes
+/// such as validation, transformation, or collection.
+///
+/// # Example
+///
+/// ```ignore
+/// struct MyVisitor;
+///
+/// impl DataNodeVisitor for MyVisitor {
+///     type Error = String;
+///
+///     fn visit_leaf(&mut self, leaf: &Leaf) -> Result<(), Self::Error> {
+///         println!("Visiting leaf: {}", leaf.name);
+///         Ok(())
+///     }
+/// }
+///
+/// let mut visitor = MyVisitor;
+/// walk_data_nodes(&module.data_nodes, &mut visitor)?;
+/// ```
+pub trait DataNodeVisitor: Sized {
+    /// The error type returned by visitor methods.
+    type Error;
+
+    /// Visit a leaf node.
+    ///
+    /// Default implementation does nothing.
+    fn visit_leaf(&mut self, _leaf: &Leaf) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Visit a leaf-list node.
+    ///
+    /// Default implementation does nothing.
+    fn visit_leaf_list(&mut self, _leaf_list: &LeafList) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Visit a container node.
+    ///
+    /// Default implementation recursively visits all children.
+    fn visit_container(&mut self, container: &Container) -> Result<(), Self::Error> {
+        for child in &container.children {
+            walk_data_node(child, self)?;
+        }
+        Ok(())
+    }
+
+    /// Visit a list node.
+    ///
+    /// Default implementation recursively visits all children.
+    fn visit_list(&mut self, list: &List) -> Result<(), Self::Error> {
+        for child in &list.children {
+            walk_data_node(child, self)?;
+        }
+        Ok(())
+    }
+
+    /// Visit a choice node.
+    ///
+    /// Default implementation recursively visits all cases.
+    fn visit_choice(&mut self, choice: &Choice) -> Result<(), Self::Error> {
+        for case in &choice.cases {
+            self.visit_case(case)?;
+        }
+        Ok(())
+    }
+
+    /// Visit a case node.
+    ///
+    /// Default implementation recursively visits all data nodes in the case.
+    fn visit_case(&mut self, case: &Case) -> Result<(), Self::Error> {
+        for child in &case.data_nodes {
+            walk_data_node(child, self)?;
+        }
+        Ok(())
+    }
+
+    /// Visit a uses node.
+    ///
+    /// Default implementation does nothing.
+    /// Note: Uses nodes are typically expanded before visiting, so this may not be called
+    /// in many scenarios.
+    fn visit_uses(&mut self, _uses: &Uses) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+/// Walk a single data node, dispatching to the appropriate visitor method.
+///
+/// This function handles the dispatch logic for visiting different types of data nodes.
+/// It calls the appropriate visitor method based on the node type.
+///
+/// # Arguments
+///
+/// * `node` - The data node to visit
+/// * `visitor` - The visitor implementation
+///
+/// # Errors
+///
+/// Returns any error returned by the visitor methods.
+pub fn walk_data_node<V: DataNodeVisitor>(
+    node: &DataNode,
+    visitor: &mut V,
+) -> Result<(), V::Error> {
+    match node {
+        DataNode::Leaf(leaf) => visitor.visit_leaf(leaf),
+        DataNode::LeafList(leaf_list) => visitor.visit_leaf_list(leaf_list),
+        DataNode::Container(container) => visitor.visit_container(container),
+        DataNode::List(list) => visitor.visit_list(list),
+        DataNode::Choice(choice) => visitor.visit_choice(choice),
+        DataNode::Case(case) => visitor.visit_case(case),
+        DataNode::Uses(uses) => visitor.visit_uses(uses),
+    }
+}
+
+/// Walk a collection of data nodes, visiting each one in order.
+///
+/// This is a convenience function for visiting multiple data nodes, such as
+/// the top-level data nodes in a module or the children of a container.
+///
+/// # Arguments
+///
+/// * `nodes` - The collection of data nodes to visit
+/// * `visitor` - The visitor implementation
+///
+/// # Errors
+///
+/// Returns any error returned by the visitor methods. Stops at the first error.
+pub fn walk_data_nodes<V: DataNodeVisitor>(
+    nodes: &[DataNode],
+    visitor: &mut V,
+) -> Result<(), V::Error> {
+    for node in nodes {
+        walk_data_node(node, visitor)?;
+    }
+    Ok(())
+}
+
 /// Internal parser for processing tokens into AST.
 struct ModuleParser {
     tokens: Vec<Token>,
@@ -2032,13 +2174,4 @@ impl ModuleParser {
 }
 
 #[cfg(test)]
-#[path = "mod.test.rs"]
-mod mod_tests;
-
-#[cfg(test)]
-#[path = "expansion.test.rs"]
-mod expansion_tests;
-
-#[cfg(test)]
-#[path = "validation.test.rs"]
-mod validation_tests;
+mod tests;
