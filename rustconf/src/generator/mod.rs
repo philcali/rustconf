@@ -25,6 +25,49 @@ pub struct CodeGenerator {
     config: GeneratorConfig,
 }
 
+/// Visitor for collecting validated types from data nodes.
+struct ValidationTypeCollector<'a> {
+    types: std::collections::HashMap<String, crate::parser::TypeSpec>,
+    type_gen: &'a types::TypeGenerator<'a>,
+}
+
+impl<'a> ValidationTypeCollector<'a> {
+    fn new(type_gen: &'a types::TypeGenerator<'a>) -> Self {
+        Self {
+            types: std::collections::HashMap::new(),
+            type_gen,
+        }
+    }
+
+    fn collect_from_typespec(&mut self, type_spec: &crate::parser::TypeSpec) {
+        if self.type_gen.needs_validation(type_spec) {
+            let type_name = self.type_gen.get_validated_type_name(type_spec);
+            self.types.insert(type_name, type_spec.clone());
+        }
+    }
+
+    fn into_types(self) -> std::collections::HashMap<String, crate::parser::TypeSpec> {
+        self.types
+    }
+}
+
+impl<'a> crate::parser::DataNodeVisitor for ValidationTypeCollector<'a> {
+    type Error = std::convert::Infallible;
+
+    fn visit_leaf(&mut self, leaf: &crate::parser::Leaf) -> Result<(), Self::Error> {
+        self.collect_from_typespec(&leaf.type_spec);
+        Ok(())
+    }
+
+    fn visit_leaf_list(
+        &mut self,
+        leaf_list: &crate::parser::LeafList,
+    ) -> Result<(), Self::Error> {
+        self.collect_from_typespec(&leaf_list.type_spec);
+        Ok(())
+    }
+}
+
 impl CodeGenerator {
     /// Create a new code generator with the given configuration.
     pub fn new(config: GeneratorConfig) -> Self {
@@ -136,10 +179,6 @@ impl CodeGenerator {
         &self,
         module: &YangModule,
     ) -> Vec<(String, crate::parser::TypeSpec)> {
-        use std::collections::HashMap;
-
-        let mut types = HashMap::new();
-
         if !self.config.enable_validation {
             return Vec::new();
         }
@@ -147,61 +186,18 @@ impl CodeGenerator {
         // Create type generator for validation checks
         let type_gen = types::TypeGenerator::new(&self.config);
 
+        // Create visitor for collecting validated types
+        let mut collector = ValidationTypeCollector::new(&type_gen);
+
         // Collect from typedefs
         for typedef in &module.typedefs {
-            if type_gen.needs_validation(&typedef.type_spec) {
-                let type_name = type_gen.get_validated_type_name(&typedef.type_spec);
-                types.insert(type_name, typedef.type_spec.clone());
-            }
+            collector.collect_from_typespec(&typedef.type_spec);
         }
 
-        // Collect from data nodes
-        for node in &module.data_nodes {
-            Self::collect_validated_types_from_node(node, &mut types, &type_gen);
-        }
+        // Collect from data nodes using visitor pattern
+        let _ = crate::parser::walk_data_nodes(&module.data_nodes, &mut collector);
 
-        types.into_iter().collect()
-    }
-
-    /// Recursively collect validated types from a data node.
-    fn collect_validated_types_from_node(
-        node: &crate::parser::DataNode,
-        types: &mut std::collections::HashMap<String, crate::parser::TypeSpec>,
-        type_gen: &types::TypeGenerator,
-    ) {
-        use crate::parser::DataNode;
-
-        match node {
-            DataNode::Leaf(leaf) => {
-                if type_gen.needs_validation(&leaf.type_spec) {
-                    let type_name = type_gen.get_validated_type_name(&leaf.type_spec);
-                    types.insert(type_name, leaf.type_spec.clone());
-                }
-            }
-            DataNode::Container(container) => {
-                for child in &container.children {
-                    Self::collect_validated_types_from_node(child, types, type_gen);
-                }
-            }
-            DataNode::List(list) => {
-                for child in &list.children {
-                    Self::collect_validated_types_from_node(child, types, type_gen);
-                }
-            }
-            DataNode::Choice(choice) => {
-                for case in &choice.cases {
-                    for child in &case.data_nodes {
-                        Self::collect_validated_types_from_node(child, types, type_gen);
-                    }
-                }
-            }
-            DataNode::Case(case) => {
-                for child in &case.data_nodes {
-                    Self::collect_validated_types_from_node(child, types, type_gen);
-                }
-            }
-            _ => {}
-        }
+        collector.into_types().into_iter().collect()
     }
 
     /// Generate file header comment with metadata.
