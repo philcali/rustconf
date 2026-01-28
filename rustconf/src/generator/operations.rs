@@ -8,6 +8,80 @@
 use crate::generator::{GeneratorConfig, GeneratorError};
 use crate::parser::{Rpc, YangModule};
 
+/// CRUD operation types for RESTCONF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrudOperation {
+    /// GET operation - retrieve resource
+    Get,
+    /// POST operation - create new resource
+    Post,
+    /// PUT operation - replace entire resource
+    Put,
+    /// PATCH operation - partial update
+    Patch,
+    /// DELETE operation - remove resource
+    Delete,
+}
+
+impl CrudOperation {
+    /// Get the HTTP method for this operation.
+    pub fn http_method(&self) -> &'static str {
+        match self {
+            CrudOperation::Get => "GET",
+            CrudOperation::Post => "POST",
+            CrudOperation::Put => "PUT",
+            CrudOperation::Patch => "PATCH",
+            CrudOperation::Delete => "DELETE",
+        }
+    }
+
+    /// Get the function name prefix for this operation.
+    pub fn function_prefix(&self) -> &'static str {
+        match self {
+            CrudOperation::Get => "get",
+            CrudOperation::Post => "create",
+            CrudOperation::Put => "put",
+            CrudOperation::Patch => "patch",
+            CrudOperation::Delete => "delete",
+        }
+    }
+
+    /// Get the operation description verb.
+    pub fn description_verb(&self) -> &'static str {
+        match self {
+            CrudOperation::Get => "Retrieve",
+            CrudOperation::Post => "Create",
+            CrudOperation::Put => "Replace",
+            CrudOperation::Patch => "Partially update",
+            CrudOperation::Delete => "Delete",
+        }
+    }
+
+    /// Check if this operation requires a data parameter.
+    pub fn requires_data(&self) -> bool {
+        matches!(
+            self,
+            CrudOperation::Post | CrudOperation::Put | CrudOperation::Patch
+        )
+    }
+
+    /// Check if this operation returns data.
+    pub fn returns_data(&self) -> bool {
+        matches!(self, CrudOperation::Get)
+    }
+}
+
+/// Resource type for CRUD operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResourceType {
+    /// Container resource (single instance)
+    Container,
+    /// List collection (all items)
+    Collection,
+    /// List item (single item by key)
+    Item,
+}
+
 /// Generator for RESTCONF operations and RPC functions.
 pub struct OperationsGenerator<'a> {
     config: &'a GeneratorConfig,
@@ -151,6 +225,119 @@ impl<'a> OperationsGenerator<'a> {
         }
     }
 
+    /// Generate a generic CRUD operation function.
+    ///
+    /// This is the core abstraction that eliminates duplication across CRUD operations.
+    fn generate_crud_operation(
+        &self,
+        operation: CrudOperation,
+        resource_type: ResourceType,
+        resource_name: &str,
+        type_name: &str,
+        path_helper: &str,
+        key_params: Option<&str>,
+    ) -> String {
+        let mut output = String::new();
+
+        // Generate function name
+        let function_prefix = crate::generator::naming::to_field_name(resource_name);
+        let operation_prefix = operation.function_prefix();
+
+        // Only GET operations on items get the _by_key suffix
+        let resource_suffix =
+            if resource_type == ResourceType::Item && operation == CrudOperation::Get {
+                "_by_key"
+            } else {
+                ""
+            };
+
+        let function_name = format!(
+            "{}_{}{}",
+            operation_prefix, function_prefix, resource_suffix
+        );
+
+        // Generate documentation
+        let description_verb = operation.description_verb();
+        let resource_desc = match (resource_type, operation) {
+            (ResourceType::Container, _) => format!("the {} container", resource_name),
+            (ResourceType::Collection, CrudOperation::Get) => {
+                format!("all {} items", resource_name)
+            }
+            (ResourceType::Collection, CrudOperation::Post) => {
+                format!("a new {} item", resource_name)
+            }
+            (ResourceType::Item, CrudOperation::Get) => {
+                format!("a single {} item by key", resource_name)
+            }
+            (ResourceType::Item, _) => format!("a {} item by key", resource_name),
+            _ => format!("{} {}", resource_type_desc(resource_type), resource_name),
+        };
+
+        fn resource_type_desc(rt: ResourceType) -> &'static str {
+            match rt {
+                ResourceType::Container => "container",
+                ResourceType::Collection => "collection",
+                ResourceType::Item => "item",
+            }
+        }
+
+        output.push_str(&format!(
+            "        /// {} {}.\n",
+            description_verb, resource_desc
+        ));
+        output.push_str("        ///\n");
+        output.push_str("        /// # Errors\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns an error if the operation fails.\n");
+
+        // Generate function signature
+        output.push_str("        pub async fn ");
+        output.push_str(&function_name);
+        output.push('(');
+
+        // Add parameters in the correct order
+        let mut params = Vec::new();
+
+        // Add key parameters first for item operations
+        if let Some(keys) = key_params {
+            params.push(keys.to_string());
+        }
+
+        // Add data parameter after keys for operations that require it
+        if operation.requires_data() {
+            params.push(format!("_data: {}", type_name));
+        }
+
+        output.push_str(&params.join(", "));
+        output.push_str(") -> Result<");
+
+        // Generate return type
+        if operation.returns_data() {
+            match resource_type {
+                ResourceType::Collection => output.push_str(&format!("Vec<{}>", type_name)),
+                _ => output.push_str(type_name),
+            }
+        } else {
+            output.push_str("()");
+        }
+
+        output.push_str(", RpcError> {\n");
+
+        // Generate function body
+        output.push_str(&format!("            let _path = {};\n", path_helper));
+        output.push_str(&format!(
+            "            // TODO: Implement {} request to RESTCONF server\n",
+            operation.http_method()
+        ));
+        output.push_str(&format!(
+            "            unimplemented!(\"{} operation not yet implemented\")\n",
+            operation.http_method()
+        ));
+        output.push_str("        }\n\n");
+
+        output
+    }
+
     /// Generate CRUD operations for a container.
     fn generate_container_crud_operations(
         &self,
@@ -167,92 +354,47 @@ impl<'a> OperationsGenerator<'a> {
         output.push('\n');
 
         // Generate GET operation (always available for containers)
-        output.push_str(&format!(
-            "        /// Retrieve the {} container.\n",
-            container.name
+        let path_helper = format!("{}_path()", function_prefix);
+        output.push_str(&self.generate_crud_operation(
+            CrudOperation::Get,
+            ResourceType::Container,
+            &container.name,
+            &type_name,
+            &path_helper,
+            None,
         ));
-        output.push_str("        ///\n");
-        output.push_str("        /// # Errors\n");
-        output.push_str("        ///\n");
-        output.push_str("        /// Returns an error if the operation fails.\n");
-        output.push_str(&format!(
-            "        pub async fn get_{}() -> Result<{}, RpcError> {{\n",
-            function_prefix, type_name
-        ));
-        output.push_str(&format!(
-            "            let _path = {}_path();\n",
-            function_prefix
-        ));
-        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
-        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
-        output.push_str("        }\n\n");
 
         // Generate config-based operations (PUT, PATCH, DELETE) only if config is true
         if container.config {
             // PUT operation - replace entire container
-            output.push_str(&format!(
-                "        /// Replace the {} container.\n",
-                container.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Put,
+                ResourceType::Container,
+                &container.name,
+                &type_name,
+                &path_helper,
+                None,
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn put_{}(_data: {}) -> Result<(), RpcError> {{\n",
-                function_prefix, type_name
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_path();\n",
-                function_prefix
-            ));
-            output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
 
             // PATCH operation - partial update
-            output.push_str(&format!(
-                "        /// Partially update the {} container.\n",
-                container.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Patch,
+                ResourceType::Container,
+                &container.name,
+                &type_name,
+                &path_helper,
+                None,
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn patch_{}(_data: {}) -> Result<(), RpcError> {{\n",
-                function_prefix, type_name
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_path();\n",
-                function_prefix
-            ));
-            output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
-            output
-                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
 
             // DELETE operation - remove container
-            output.push_str(&format!(
-                "        /// Delete the {} container.\n",
-                container.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Delete,
+                ResourceType::Container,
+                &container.name,
+                &type_name,
+                &path_helper,
+                None,
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn delete_{}() -> Result<(), RpcError> {{\n",
-                function_prefix
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_path();\n",
-                function_prefix
-            ));
-            output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
-            output
-                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
         }
 
         Ok(output)
@@ -271,145 +413,82 @@ impl<'a> OperationsGenerator<'a> {
 
         // Determine item type name (singular)
         let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
-            &type_name[..type_name.len() - 1]
+            type_name[..type_name.len() - 1].to_string()
         } else {
-            &type_name
+            type_name.clone()
         };
 
         // Generate path helper functions
         output.push_str(&path_gen.generate_list_path_helpers(list, module)?);
         output.push('\n');
 
-        // Generate GET operation for entire list
-        output.push_str(&format!("        /// Retrieve all {} items.\n", list.name));
-        output.push_str("        ///\n");
-        output.push_str("        /// # Errors\n");
-        output.push_str("        ///\n");
-        output.push_str("        /// Returns an error if the operation fails.\n");
-        output.push_str(&format!(
-            "        pub async fn get_{}() -> Result<Vec<{}>, RpcError> {{\n",
-            function_prefix, item_type_name
-        ));
-        output.push_str(&format!(
-            "            let _path = {}_path();\n",
-            function_prefix
-        ));
-        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
-        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
-        output.push_str("        }\n\n");
-
         // Generate key parameter types for operations that need them
         let key_params = path_gen.generate_list_key_params(list);
+        let key_param_names = path_gen.generate_key_param_names(list);
+
+        // Generate GET operation for entire list (collection)
+        let collection_path = format!("{}_path()", function_prefix);
+        output.push_str(&self.generate_crud_operation(
+            CrudOperation::Get,
+            ResourceType::Collection,
+            &list.name,
+            &item_type_name,
+            &collection_path,
+            None,
+        ));
 
         // GET operation for single item by key
-        output.push_str(&format!(
-            "        /// Retrieve a single {} item by key.\n",
-            list.name
+        let item_path = format!("{}_item_path({})", function_prefix, key_param_names);
+        output.push_str(&self.generate_crud_operation(
+            CrudOperation::Get,
+            ResourceType::Item,
+            &list.name,
+            &item_type_name,
+            &item_path,
+            Some(&key_params),
         ));
-        output.push_str("        ///\n");
-        output.push_str("        /// # Errors\n");
-        output.push_str("        ///\n");
-        output.push_str("        /// Returns an error if the operation fails.\n");
-        output.push_str(&format!(
-            "        pub async fn get_{}_by_key({}) -> Result<{}, RpcError> {{\n",
-            function_prefix, key_params, item_type_name
-        ));
-        output.push_str(&format!(
-            "            let _path = {}_item_path({});\n",
-            function_prefix,
-            path_gen.generate_key_param_names(list)
-        ));
-        output.push_str("            // TODO: Implement GET request to RESTCONF server\n");
-        output.push_str("            unimplemented!(\"GET operation not yet implemented\")\n");
-        output.push_str("        }\n\n");
 
         // Generate config-based operations only if config is true
         if list.config {
             // POST operation - create new item
-            output.push_str(&format!("        /// Create a new {} item.\n", list.name));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn create_{}(_data: {}) -> Result<(), RpcError> {{\n",
-                function_prefix, item_type_name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Post,
+                ResourceType::Collection,
+                &list.name,
+                &item_type_name,
+                &collection_path,
+                None,
             ));
-            output.push_str(&format!(
-                "            let _path = {}_path();\n",
-                function_prefix
-            ));
-            output.push_str("            // TODO: Implement POST request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"POST operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
 
             // PUT operation - replace item by key
-            output.push_str(&format!(
-                "        /// Replace a {} item by key.\n",
-                list.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Put,
+                ResourceType::Item,
+                &list.name,
+                &item_type_name,
+                &item_path,
+                Some(&key_params),
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn put_{}({}, _data: {}) -> Result<(), RpcError> {{\n",
-                function_prefix, key_params, item_type_name
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_item_path({});\n",
-                function_prefix,
-                path_gen.generate_key_param_names(list)
-            ));
-            output.push_str("            // TODO: Implement PUT request to RESTCONF server\n");
-            output.push_str("            unimplemented!(\"PUT operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
 
             // PATCH operation - partial update by key
-            output.push_str(&format!(
-                "        /// Partially update a {} item by key.\n",
-                list.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Patch,
+                ResourceType::Item,
+                &list.name,
+                &item_type_name,
+                &item_path,
+                Some(&key_params),
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn patch_{}({}, _data: {}) -> Result<(), RpcError> {{\n",
-                function_prefix, key_params, item_type_name
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_item_path({});\n",
-                function_prefix,
-                path_gen.generate_key_param_names(list)
-            ));
-            output.push_str("            // TODO: Implement PATCH request to RESTCONF server\n");
-            output
-                .push_str("            unimplemented!(\"PATCH operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
 
             // DELETE operation - remove item by key
-            output.push_str(&format!(
-                "        /// Delete a {} item by key.\n",
-                list.name
+            output.push_str(&self.generate_crud_operation(
+                CrudOperation::Delete,
+                ResourceType::Item,
+                &list.name,
+                &item_type_name,
+                &item_path,
+                Some(&key_params),
             ));
-            output.push_str("        ///\n");
-            output.push_str("        /// # Errors\n");
-            output.push_str("        ///\n");
-            output.push_str("        /// Returns an error if the operation fails.\n");
-            output.push_str(&format!(
-                "        pub async fn delete_{}({}) -> Result<(), RpcError> {{\n",
-                function_prefix, key_params
-            ));
-            output.push_str(&format!(
-                "            let _path = {}_item_path({});\n",
-                function_prefix,
-                path_gen.generate_key_param_names(list)
-            ));
-            output.push_str("            // TODO: Implement DELETE request to RESTCONF server\n");
-            output
-                .push_str("            unimplemented!(\"DELETE operation not yet implemented\")\n");
-            output.push_str("        }\n\n");
         }
 
         Ok(output)
