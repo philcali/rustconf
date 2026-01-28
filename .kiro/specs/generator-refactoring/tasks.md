@@ -140,36 +140,36 @@
 ## Phase 4: CRUD Pattern Extraction
 
 ### 18. Implement CRUD Abstractions (Refs: Requirements 4.1, 4.2)
-- [ ] 18.1 Implement `CrudOperation` enum with all variants (GET, PUT, PATCH, DELETE, POST)
-- [ ] 18.2 Implement `ResourceType` enum with all variants (Container, Collection, Item)
-- [ ] 18.3 Add helper methods to `CrudOperation` (http_method, function_prefix, etc.)
-- [ ] 18.4 Add tests for enum behavior
+- [x] 18.1 Implement `CrudOperation` enum with all variants (GET, PUT, PATCH, DELETE, POST)
+- [x] 18.2 Implement `ResourceType` enum with all variants (Container, Collection, Item)
+- [x] 18.3 Add helper methods to `CrudOperation` (http_method, function_prefix, etc.)
+- [x] 18.4 Add tests for enum behavior
 
 ### 19. Extract Common CRUD Generation (Refs: Requirements 4.3)
-- [ ] 19.1 Implement `generate_crud_operation()` generic function
-- [ ] 19.2 Implement `operation_function_name()` helper
-- [ ] 19.3 Implement `operation_parameters()` helper
-- [ ] 19.4 Implement `operation_return_type()` helper
-- [ ] 19.5 Implement `generate_operation_body()` helper
-- [ ] 19.6 Implement `generate_operation_doc()` helper
+- [x] 19.1 Implement `generate_crud_operation()` generic function
+- [x] 19.2 Implement `operation_function_name()` helper
+- [x] 19.3 Implement `operation_parameters()` helper
+- [x] 19.4 Implement `operation_return_type()` helper
+- [x] 19.5 Implement `generate_operation_body()` helper
+- [x] 19.6 Implement `generate_operation_doc()` helper
 
 ### 20. Refactor Container CRUD Operations (Refs: Requirements 4.4, 4.5, 4.6)
-- [ ] 20.1 Update `generate_container_crud_operations()` to use generic function
-- [ ] 20.2 Remove duplicated code
-- [ ] 20.3 Run tests to verify output is identical
-- [ ] 20.4 Measure code reduction
+- [x] 20.1 Update `generate_container_crud_operations()` to use generic function
+- [x] 20.2 Remove duplicated code
+- [x] 20.3 Run tests to verify output is identical
+- [x] 20.4 Measure code reduction
 
 ### 21. Refactor List CRUD Operations (Refs: Requirements 4.4, 4.5, 4.6)
-- [ ] 21.1 Update `generate_list_crud_operations()` to use generic function
-- [ ] 21.2 Remove duplicated code
-- [ ] 21.3 Run tests to verify output is identical
-- [ ] 21.4 Measure code reduction
+- [x] 21.1 Update `generate_list_crud_operations()` to use generic function
+- [x] 21.2 Remove duplicated code
+- [x] 21.3 Run tests to verify output is identical
+- [x] 21.4 Measure code reduction
 
 ### 22. Verify CRUD Improvements (Refs: Requirements 4.6)
-- [ ] 22.1 Run all CRUD tests
-- [ ] 22.2 Compare generated code before/after
-- [ ] 22.3 Verify at least 40% code reduction in operations.rs
-- [ ] 22.4 Document the new pattern
+- [x] 22.1 Run all CRUD tests
+- [x] 22.2 Compare generated code before/after
+- [x] 22.3 Verify at least 40% code reduction in operations.rs
+- [x] 22.4 Document the new pattern
 
 ## Phase 5: Parser Visitor Pattern
 
