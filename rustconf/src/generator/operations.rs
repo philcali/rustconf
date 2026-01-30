@@ -522,10 +522,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("            transport,\n");
         output.push_str("            interceptor: None,\n");
         output.push_str("        })\n");
-        output.push_str("    }\n");
+        output.push_str("    }\n\n");
 
         // Generate with_interceptor() builder method
-        output.push_str("\n");
         output.push_str("    /// Add a request interceptor to this client.\n");
         output.push_str("    ///\n");
         output.push_str(
@@ -579,10 +578,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    pub fn with_interceptor(mut self, interceptor: impl RequestInterceptor + 'static) -> Self {\n");
         output.push_str("        self.interceptor = Some(Box::new(interceptor));\n");
         output.push_str("        self\n");
-        output.push_str("    }\n");
+        output.push_str("    }\n\n");
 
         // Generate execute_request() internal method
-        output.push_str("\n");
         output.push_str(
             "    /// Execute an HTTP request through the transport with interceptor hooks.\n",
         );
@@ -635,10 +633,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("        }\n");
         output.push_str("        \n");
         output.push_str("        Ok(response)\n");
-        output.push_str("    }\n");
+        output.push_str("    }\n\n");
 
         // Generate base_url() getter method
-        output.push_str("\n");
         output.push_str("    /// Get the base URL for this client.\n");
         output.push_str("    ///\n");
         output.push_str(
