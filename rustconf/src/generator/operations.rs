@@ -951,7 +951,7 @@ impl<'a> OperationsGenerator<'a> {
                 if !types.is_empty() {
                     output.push_str(&types);
                 }
-                output.push_str(&self.generate_rpc_function(rpc)?);
+                output.push_str(&self.generate_rpc_function(rpc, module)?);
                 output.push('\n');
             }
         }
@@ -1323,7 +1323,11 @@ impl<'a> OperationsGenerator<'a> {
     }
 
     /// Generate an async function for an RPC operation.
-    fn generate_rpc_function(&self, rpc: &Rpc) -> Result<String, GeneratorError> {
+    fn generate_rpc_function(
+        &self,
+        rpc: &Rpc,
+        module: &YangModule,
+    ) -> Result<String, GeneratorError> {
         let mut output = String::new();
         let rpc_type_name = crate::generator::naming::to_type_name(&rpc.name);
         let function_name = crate::generator::naming::to_field_name(&rpc.name);
@@ -1366,6 +1370,39 @@ impl<'a> OperationsGenerator<'a> {
             "Result<(), RpcError>".to_string()
         };
 
+        // Check if RESTful RPC generation is enabled
+        if self.config.enable_restful_rpcs {
+            // Generate RESTful implementation
+            self.generate_restful_rpc_function(
+                &mut output,
+                rpc,
+                module,
+                &function_name,
+                &rpc_type_name,
+                &input_param,
+                &return_type,
+            )?;
+        } else {
+            // Generate stub function that returns NotImplemented
+            self.generate_stub_rpc_function(
+                &mut output,
+                &function_name,
+                &input_param,
+                &return_type,
+            );
+        }
+
+        Ok(output)
+    }
+
+    /// Generate a stub RPC function that returns NotImplemented error.
+    fn generate_stub_rpc_function(
+        &self,
+        output: &mut String,
+        function_name: &str,
+        input_param: &str,
+        return_type: &str,
+    ) {
         // Generate function signature
         if input_param.is_empty() {
             output.push_str(&format!(
@@ -1379,13 +1416,135 @@ impl<'a> OperationsGenerator<'a> {
             ));
         }
 
-        // Generate function body (placeholder implementation)
-        output.push_str("        // TODO: Implement RPC call logic\n");
-        output.push_str("        // This is a placeholder that should be replaced with actual RESTCONF client implementation\n");
-        output.push_str("        unimplemented!(\"RPC operation not yet implemented\")\n");
+        // Generate stub body that returns NotImplemented
+        output.push_str("        Err(RpcError::NotImplemented)\n");
+        output.push_str("    }\n");
+    }
+
+    /// Generate a RESTful RPC function implementation.
+    fn generate_restful_rpc_function(
+        &self,
+        output: &mut String,
+        rpc: &Rpc,
+        module: &YangModule,
+        function_name: &str,
+        _rpc_type_name: &str,
+        input_param: &str,
+        return_type: &str,
+    ) -> Result<(), GeneratorError> {
+        // Generate function signature with client parameter
+        if input_param.is_empty() {
+            output.push_str(&format!(
+                "    pub async fn {}<T: HttpTransport>(client: &RestconfClient<T>) -> {} {{\n",
+                function_name, return_type
+            ));
+        } else {
+            output.push_str(&format!(
+                "    pub async fn {}<T: HttpTransport>(client: &RestconfClient<T>, {}) -> {} {{\n",
+                function_name, input_param, return_type
+            ));
+        }
+
+        // Determine if we have input to serialize
+        let has_input = rpc.input.as_ref().is_some_and(|nodes| !nodes.is_empty());
+
+        // Determine if we have output to deserialize
+        let has_output = rpc.output.as_ref().is_some_and(|nodes| !nodes.is_empty());
+
+        // Generate function body
+        if has_input {
+            // Serialize input to JSON
+            output.push_str("        // Serialize input to JSON\n");
+            output.push_str("        let body = serde_json::to_vec(&input)\n");
+            output.push_str("            .map_err(|e| RpcError::SerializationError(format!(\"Failed to serialize input: {}\", e)))?;\n\n");
+        }
+
+        // Construct RESTCONF URL using UrlBuilder
+        output.push_str("        // Construct RESTCONF URL\n");
+        output.push_str(
+            "        let url_builder = crate::generator::url_builder::UrlBuilder::new(\n",
+        );
+        output.push_str(&format!(
+            "            crate::generator::config::NamespaceMode::{:?}\n",
+            self.config.restful_namespace_mode
+        ));
+        output.push_str("        );\n");
+        output.push_str("        let url = url_builder.build_operation_url(\n");
+        output.push_str("            client.base_url(),\n");
+        output.push_str(&format!("            \"{}\",\n", module.name));
+        output.push_str(&format!("            \"{}\"\n", rpc.name));
+        output.push_str("        );\n\n");
+
+        // Build HttpRequest with POST method
+        output.push_str("        // Build HTTP request\n");
+        output.push_str("        let request = HttpRequest {\n");
+        output.push_str("            method: HttpMethod::POST,\n");
+        output.push_str("            url,\n");
+        output.push_str("            headers: vec![\n");
+        output.push_str("                (\"Content-Type\".to_string(), \"application/yang-data+json\".to_string()),\n");
+        output.push_str("                (\"Accept\".to_string(), \"application/yang-data+json\".to_string()),\n");
+        output.push_str("            ],\n");
+
+        if has_input {
+            output.push_str("            body: Some(body),\n");
+        } else {
+            output.push_str("            body: None,\n");
+        }
+
+        output.push_str("        };\n\n");
+
+        // Call client.execute_request()
+        output.push_str("        // Execute request through client\n");
+        output.push_str("        let response = client.execute_request(request).await?;\n\n");
+
+        // Map HTTP status codes to RpcError variants
+        output.push_str("        // Map HTTP status to error or deserialize response\n");
+        output.push_str("        match response.status_code {\n");
+        output.push_str("            200..=299 => {\n");
+
+        if has_output {
+            // Deserialize response body for 2xx status codes
+            output.push_str("                // Success - deserialize response body\n");
+            output.push_str("                serde_json::from_slice(&response.body)\n");
+            output.push_str("                    .map_err(|e| RpcError::DeserializationError(\n");
+            output.push_str(
+                "                        format!(\"Failed to deserialize response: {}\", e)\n",
+            );
+            output.push_str("                    ))\n");
+        } else {
+            // No output expected, just return Ok(())
+            output.push_str("                // Success - no output expected\n");
+            output.push_str("                Ok(())\n");
+        }
+
+        output.push_str("            }\n");
+
+        // Map specific status codes to appropriate errors
+        output.push_str("            400 => Err(RpcError::InvalidInput(\n");
+        output.push_str("                String::from_utf8_lossy(&response.body).to_string()\n");
+        output.push_str("            )),\n");
+        output.push_str("            401 | 403 => Err(RpcError::Unauthorized(\n");
+        output.push_str("                String::from_utf8_lossy(&response.body).to_string()\n");
+        output.push_str("            )),\n");
+        output.push_str("            404 => Err(RpcError::NotFound(\n");
+        output.push_str("                String::from_utf8_lossy(&response.body).to_string()\n");
+        output.push_str("            )),\n");
+        output.push_str("            500..=599 => Err(RpcError::ServerError {\n");
+        output.push_str("                code: response.status_code,\n");
+        output.push_str(
+            "                message: String::from_utf8_lossy(&response.body).to_string(),\n",
+        );
+        output.push_str("            }),\n");
+        output.push_str("            _ => Err(RpcError::UnknownError(\n");
+        output.push_str(
+            "                format!(\"Unexpected status code: {}\", response.status_code)\n",
+        );
+        output.push_str("            )),\n");
+        output.push_str("        }\n");
+
         output.push_str("    }\n");
 
-        Ok(output)
+        Ok(())
     }
 
     /// Generate rustdoc comments from a YANG description.

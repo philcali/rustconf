@@ -123,12 +123,12 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - _Requirements: 5.4, 5.5_
 
 - [ ] 5. Generate RESTful RPC functions
-  - [ ] 5.1 Modify RPC function generator to check `enable_restful_rpcs` flag
+  - [x] 5.1 Modify RPC function generator to check `enable_restful_rpcs` flag
     - When false: generate stub functions (existing behavior)
     - When true: generate RESTful implementations
     - _Requirements: 6.1, 6.2, 10.1_
   
-  - [ ] 5.2 Generate RESTful RPC function implementations
+  - [x] 5.2 Generate RESTful RPC function implementations
     - Accept `client: &RestconfClient<T>` and input parameters
     - Serialize input to JSON using `serde_json::to_vec()`
     - Construct RESTCONF URL using `UrlBuilder`
