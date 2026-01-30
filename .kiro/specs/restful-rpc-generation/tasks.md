@@ -191,21 +191,21 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
 - [x] 6. Checkpoint - Ensure core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Generate reqwest transport adapter
-  - [ ] 7.1 Generate `reqwest_adapter` module with feature gate
+- [x] 7. Generate reqwest transport adapter
+  - [x] 7.1 Generate `reqwest_adapter` module with feature gate
     - Add `#[cfg(feature = "reqwest-client")]` attribute
     - _Requirements: 2.1, 8.1_
   
-  - [ ] 7.2 Generate `ReqwestTransport` struct
+  - [x] 7.2 Generate `ReqwestTransport` struct
     - Include `reqwest::Client` field
     - _Requirements: 2.1_
   
-  - [ ] 7.3 Implement constructor methods
+  - [x] 7.3 Implement constructor methods
     - `new()`: Create with default client
     - `with_client()`: Accept custom reqwest::Client
     - _Requirements: 2.1_
   
-  - [ ] 7.4 Implement `HttpTransport` trait for `ReqwestTransport`
+  - [x] 7.4 Implement `HttpTransport` trait for `ReqwestTransport`
     - Convert `HttpMethod` to `reqwest::Method`
     - Build reqwest request with method, URL, headers, body
     - Execute request and await response
@@ -214,7 +214,7 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
     - Return `HttpResponse`
     - _Requirements: 2.1, 2.4, 2.5, 18_
   
-  - [ ] 7.5 Add documentation to reqwest adapter
+  - [x] 7.5 Add documentation to reqwest adapter
     - Include usage examples
     - Document feature flag requirement
     - _Requirements: 12.5_

@@ -177,6 +177,13 @@ impl CodeGenerator {
 
             content.push_str(&ops_gen.generate_rpc_error());
             content.push('\n');
+
+            // Generate reqwest transport adapter if RESTful RPCs are enabled
+            if self.config.enable_restful_rpcs {
+                content.push_str(&ops_gen.generate_reqwest_adapter());
+                content.push('\n');
+            }
+
             content.push_str(&ops_gen.generate_operations_module(module)?);
             content.push('\n');
         }
