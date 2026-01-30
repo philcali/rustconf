@@ -315,6 +315,349 @@ impl<'a> OperationsGenerator<'a> {
         output
     }
 
+    /// Generate RestconfClient struct for RESTful RPCs.
+    pub fn generate_restconf_client(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// RESTCONF client for executing RESTful RPC operations.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This struct manages HTTP communication with RESTCONF servers, providing\n",
+        );
+        output.push_str(
+            "/// runtime configuration for base URLs, pluggable HTTP transports, and optional\n",
+        );
+        output.push_str("/// request interceptors for authentication and logging.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Type Parameters\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// * `T` - The HTTP transport implementation to use for executing requests.\n",
+        );
+        output.push_str("///   Must implement the `HttpTransport` trait.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Examples\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Basic usage with reqwest transport\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// #[tokio::main]\n");
+        output.push_str("/// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("///     // Create a transport adapter\n");
+        output.push_str("///     let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Create a client for a specific device\n");
+        output.push_str("///     let client = RestconfClient::new(\n");
+        output.push_str("///         \"https://router.example.com\",\n");
+        output.push_str("///         transport\n");
+        output.push_str("///     )?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Use the client to call RPC operations\n");
+        output.push_str("///     // let result = some_rpc_function(&client, input).await?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     Ok(())\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Using with an interceptor for authentication\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use async_trait::async_trait;\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// // Define a custom interceptor for authentication\n");
+        output.push_str("/// struct AuthInterceptor {\n");
+        output.push_str("///     token: String,\n");
+        output.push_str("/// }\n");
+        output.push_str("///\n");
+        output.push_str("/// #[async_trait]\n");
+        output.push_str("/// impl RequestInterceptor for AuthInterceptor {\n");
+        output.push_str("///     async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {\n");
+        output.push_str("///         request.headers.push((\n");
+        output.push_str("///             \"Authorization\".to_string(),\n");
+        output.push_str("///             format!(\"Bearer {}\", self.token)\n");
+        output.push_str("///         ));\n");
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("///\n");
+        output.push_str("///     async fn after_response(&self, _response: &HttpResponse) -> Result<(), RpcError> {\n");
+        output.push_str("///         Ok(())\n");
+        output.push_str("///     }\n");
+        output.push_str("/// }\n");
+        output.push_str("///\n");
+        output.push_str("/// #[tokio::main]\n");
+        output.push_str("/// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("///     let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Create a client with an authentication interceptor\n");
+        output.push_str("///     let client = RestconfClient::new(\n");
+        output.push_str("///         \"https://router.example.com\",\n");
+        output.push_str("///         transport\n");
+        output.push_str("///     )?\n");
+        output.push_str("///     .with_interceptor(AuthInterceptor {\n");
+        output.push_str("///         token: \"my-secret-token\".to_string(),\n");
+        output.push_str("///     });\n");
+        output.push_str("///     \n");
+        output.push_str("///     Ok(())\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Managing multiple devices\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// #[tokio::main]\n");
+        output.push_str("/// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("///     let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("///     \n");
+        output.push_str(
+            "///     // Create clients for different devices with the same generated code\n",
+        );
+        output.push_str("///     let router1 = RestconfClient::new(\n");
+        output.push_str("///         \"https://router1.example.com\",\n");
+        output.push_str("///         transport.clone()\n");
+        output.push_str("///     )?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     let router2 = RestconfClient::new(\n");
+        output.push_str("///         \"https://router2.example.com\",\n");
+        output.push_str("///         transport.clone()\n");
+        output.push_str("///     )?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     // Use the same RPC functions with different clients\n");
+        output.push_str("///     // let result1 = some_rpc_function(&router1, input).await?;\n");
+        output.push_str("///     // let result2 = some_rpc_function(&router2, input).await?;\n");
+        output.push_str("///     \n");
+        output.push_str("///     Ok(())\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+
+        if !derives.is_empty() {
+            output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+        }
+
+        output.push_str("pub struct RestconfClient<T: HttpTransport> {\n");
+        output.push_str("    /// The base URL for the RESTCONF server.\n");
+        output.push_str("    base_url: String,\n");
+        output.push_str("    /// The HTTP transport implementation.\n");
+        output.push_str("    transport: T,\n");
+        output.push_str("    /// Optional request interceptor for authentication, logging, etc.\n");
+        output.push_str("    interceptor: Option<Box<dyn RequestInterceptor>>,\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate RestconfClient implementation methods.
+    pub fn generate_restconf_client_impl(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("impl<T: HttpTransport> RestconfClient<T> {\n");
+
+        // Generate new() constructor
+        output.push_str(
+            "    /// Create a new RESTCONF client with the given base URL and transport.\n",
+        );
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// The base URL should be the root URL of the RESTCONF server, without\n",
+        );
+        output.push_str(
+            "    /// the `/restconf` path component. For example: `https://device.example.com`\n",
+        );
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `base_url` - The base URL of the RESTCONF server\n");
+        output.push_str("    /// * `transport` - The HTTP transport implementation to use\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Returns `Ok(RestconfClient)` if the base URL is valid, or `Err(RpcError)`\n",
+        );
+        output.push_str("    /// if the URL format is invalid.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns `RpcError::InvalidInput` if:\n");
+        output.push_str("    /// - The base URL is empty\n");
+        output.push_str("    /// - The base URL does not start with `http://` or `https://`\n");
+        output.push_str("    /// - The base URL contains invalid characters\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("    /// let client = RestconfClient::new(\n");
+        output.push_str("    ///     \"https://router.example.com\",\n");
+        output.push_str("    ///     transport\n");
+        output.push_str("    /// )?;\n");
+        output.push_str("    /// ```\n");
+        output.push_str("    pub fn new(base_url: impl Into<String>, transport: T) -> Result<Self, RpcError> {\n");
+        output.push_str("        let base_url = base_url.into();\n");
+        output.push_str("        \n");
+        output.push_str("        // Validate base URL format\n");
+        output.push_str("        if base_url.is_empty() {\n");
+        output.push_str("            return Err(RpcError::InvalidInput(\n");
+        output.push_str("                \"Base URL cannot be empty\".to_string()\n");
+        output.push_str("            ));\n");
+        output.push_str("        }\n");
+        output.push_str("        \n");
+        output.push_str("        if !base_url.starts_with(\"http://\") && !base_url.starts_with(\"https://\") {\n");
+        output.push_str("            return Err(RpcError::InvalidInput(\n");
+        output.push_str("                format!(\"Base URL must start with http:// or https://, got: {}\", base_url)\n");
+        output.push_str("            ));\n");
+        output.push_str("        }\n");
+        output.push_str("        \n");
+        output.push_str("        Ok(Self {\n");
+        output.push_str("            base_url,\n");
+        output.push_str("            transport,\n");
+        output.push_str("            interceptor: None,\n");
+        output.push_str("        })\n");
+        output.push_str("    }\n");
+
+        // Generate with_interceptor() builder method
+        output.push_str("\n");
+        output.push_str("    /// Add a request interceptor to this client.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Interceptors allow you to modify requests before they are sent and inspect\n",
+        );
+        output.push_str("    /// responses after they are received. This is useful for implementing authentication,\n");
+        output.push_str("    /// logging, request signing, and other cross-cutting concerns.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `interceptor` - The interceptor implementation to add\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns `self` to allow method chaining.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// use async_trait::async_trait;\n");
+        output.push_str("    /// use my_bindings::*;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// struct AuthInterceptor {\n");
+        output.push_str("    ///     token: String,\n");
+        output.push_str("    /// }\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// #[async_trait]\n");
+        output.push_str("    /// impl RequestInterceptor for AuthInterceptor {\n");
+        output.push_str("    ///     async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {\n");
+        output.push_str("    ///         request.headers.push((\n");
+        output.push_str("    ///             \"Authorization\".to_string(),\n");
+        output.push_str("    ///             format!(\"Bearer {}\", self.token)\n");
+        output.push_str("    ///         ));\n");
+        output.push_str("    ///         Ok(())\n");
+        output.push_str("    ///     }\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     async fn after_response(&self, _response: &HttpResponse) -> Result<(), RpcError> {\n");
+        output.push_str("    ///         Ok(())\n");
+        output.push_str("    ///     }\n");
+        output.push_str("    /// }\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("    /// let client = RestconfClient::new(\n");
+        output.push_str("    ///     \"https://router.example.com\",\n");
+        output.push_str("    ///     transport\n");
+        output.push_str("    /// )?\n");
+        output.push_str("    /// .with_interceptor(AuthInterceptor {\n");
+        output.push_str("    ///     token: \"my-secret-token\".to_string(),\n");
+        output.push_str("    /// });\n");
+        output.push_str("    /// ```\n");
+        output.push_str("    pub fn with_interceptor(mut self, interceptor: impl RequestInterceptor + 'static) -> Self {\n");
+        output.push_str("        self.interceptor = Some(Box::new(interceptor));\n");
+        output.push_str("        self\n");
+        output.push_str("    }\n");
+
+        // Generate execute_request() internal method
+        output.push_str("\n");
+        output.push_str(
+            "    /// Execute an HTTP request through the transport with interceptor hooks.\n",
+        );
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method is used internally by generated RPC functions to execute HTTP\n",
+        );
+        output.push_str("    /// requests. It handles the interceptor lifecycle:\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// 1. Call `before_request` hook if an interceptor is configured\n");
+        output.push_str("    /// 2. Execute the request through the transport\n");
+        output.push_str("    /// 3. Call `after_response` hook if an interceptor is configured\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// If any interceptor hook returns an error, the request is aborted and the\n",
+        );
+        output.push_str("    /// error is returned immediately.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `request` - The HTTP request to execute\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Returns `Ok(HttpResponse)` on success, or `Err(RpcError)` if the request\n",
+        );
+        output.push_str("    /// fails or an interceptor aborts the request.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Errors\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns an error if:\n");
+        output.push_str(
+            "    /// - The `before_request` interceptor returns an error (request is not sent)\n",
+        );
+        output.push_str("    /// - The transport fails to execute the request\n");
+        output.push_str("    /// - The `after_response` interceptor returns an error\n");
+        output.push_str("    pub(crate) async fn execute_request(&self, mut request: HttpRequest) -> Result<HttpResponse, RpcError> {\n");
+        output.push_str("        // Call before_request hook if interceptor is configured\n");
+        output.push_str("        if let Some(ref interceptor) = self.interceptor {\n");
+        output.push_str("            interceptor.before_request(&mut request).await?;\n");
+        output.push_str("        }\n");
+        output.push_str("        \n");
+        output.push_str("        // Execute the request through the transport\n");
+        output.push_str("        let response = self.transport.execute(request).await?;\n");
+        output.push_str("        \n");
+        output.push_str("        // Call after_response hook if interceptor is configured\n");
+        output.push_str("        if let Some(ref interceptor) = self.interceptor {\n");
+        output.push_str("            interceptor.after_response(&response).await?;\n");
+        output.push_str("        }\n");
+        output.push_str("        \n");
+        output.push_str("        Ok(response)\n");
+        output.push_str("    }\n");
+
+        // Generate base_url() getter method
+        output.push_str("\n");
+        output.push_str("    /// Get the base URL for this client.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method is used internally by generated RPC functions to construct\n",
+        );
+        output.push_str("    /// RESTCONF URLs.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns a reference to the base URL string.\n");
+        output.push_str("    pub(crate) fn base_url(&self) -> &str {\n");
+        output.push_str("        &self.base_url\n");
+        output.push_str("    }\n");
+
+        output.push_str("}\n");
+
+        output
+    }
+
     /// Generate RequestInterceptor trait for RESTful RPCs.
     pub fn generate_request_interceptor(&self) -> String {
         let mut output = String::new();

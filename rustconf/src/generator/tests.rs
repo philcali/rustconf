@@ -119,6 +119,7 @@ mod config_validation;
 mod crud_operations;
 mod integration;
 mod notifications;
+mod restconf_client;
 mod rpc_error_generation;
 mod rpc_operations;
 mod type_generation;
