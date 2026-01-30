@@ -854,3 +854,211 @@ fn test_request_interceptor_not_generated_when_restful_rpcs_disabled() {
     assert!(!content.contains("async fn before_request"));
     assert!(!content.contains("async fn after_response"));
 }
+
+#[test]
+fn test_stub_rpc_function_when_restful_rpcs_disabled() {
+    // Test that when enable_restful_rpcs is false, stub functions are generated
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-operation".to_string(),
+            description: Some("Test RPC operation".to_string()),
+            input: Some(vec![DataNode::Leaf(Leaf {
+                name: "param".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })]),
+            output: Some(vec![DataNode::Leaf(Leaf {
+                name: "result".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })]),
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that stub function is generated
+    assert!(
+        content.contains("pub async fn test_operation(input: TestOperationInput) -> Result<TestOperationOutput, RpcError>"),
+        "Stub function signature should be generated"
+    );
+
+    // Check that stub returns NotImplemented
+    assert!(
+        content.contains("Err(RpcError::NotImplemented)"),
+        "Stub function should return NotImplemented error"
+    );
+
+    // Check that RestconfClient is NOT used in the signature
+    assert!(
+        !content.contains("client: &RestconfClient"),
+        "Stub function should not have client parameter"
+    );
+}
+
+#[test]
+fn test_restful_rpc_function_when_restful_rpcs_enabled() {
+    // Test that when enable_restful_rpcs is true, RESTful functions are generated
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-operation".to_string(),
+            description: Some("Test RPC operation".to_string()),
+            input: Some(vec![DataNode::Leaf(Leaf {
+                name: "param".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })]),
+            output: Some(vec![DataNode::Leaf(Leaf {
+                name: "result".to_string(),
+                description: None,
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })]),
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that RESTful function is generated with client parameter
+    assert!(
+        content.contains("pub async fn test_operation<T: HttpTransport>(client: &RestconfClient<T>, input: TestOperationInput) -> Result<TestOperationOutput, RpcError>"),
+        "RESTful function signature should include client parameter and generic type"
+    );
+
+    // Check that stub NotImplemented is NOT used
+    assert!(
+        !content.contains("Err(RpcError::NotImplemented)"),
+        "RESTful function should not return NotImplemented error"
+    );
+
+    // Check that RestconfClient is used in the signature
+    assert!(
+        content.contains("client: &RestconfClient"),
+        "RESTful function should have client parameter"
+    );
+}
+
+#[test]
+fn test_restful_rpc_function_without_input() {
+    // Test RESTful function generation for RPC with no input
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "ping".to_string(),
+            description: Some("Ping operation".to_string()),
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that RESTful function is generated with only client parameter
+    assert!(
+        content.contains("pub async fn ping<T: HttpTransport>(client: &RestconfClient<T>) -> Result<(), RpcError>"),
+        "RESTful function without input should only have client parameter"
+    );
+}
+
+#[test]
+fn test_stub_rpc_function_without_input() {
+    // Test stub function generation for RPC with no input
+    let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "ping".to_string(),
+            description: Some("Ping operation".to_string()),
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that stub function is generated without any parameters
+    assert!(
+        content.contains("pub async fn ping() -> Result<(), RpcError>"),
+        "Stub function without input should have no parameters"
+    );
+
+    // Check that stub returns NotImplemented
+    assert!(
+        content.contains("Err(RpcError::NotImplemented)"),
+        "Stub function should return NotImplemented error"
+    );
+}
