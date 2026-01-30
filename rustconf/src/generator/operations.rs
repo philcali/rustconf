@@ -1341,12 +1341,127 @@ impl<'a> OperationsGenerator<'a> {
                 rpc.name
             ));
         }
+        output.push_str("    ///\n");
+
+        // Determine if we have input/output for documentation
+        let has_input = rpc.input.as_ref().is_some_and(|nodes| !nodes.is_empty());
+        let has_output = rpc.output.as_ref().is_some_and(|nodes| !nodes.is_empty());
+
+        // Add parameters documentation
+        if self.config.enable_restful_rpcs || has_input {
+            output.push_str("    /// # Arguments\n");
+            output.push_str("    ///\n");
+
+            if self.config.enable_restful_rpcs {
+                output.push_str("    /// * `client` - The RestconfClient to use for executing the RPC request\n");
+            }
+
+            if has_input {
+                output.push_str(&format!(
+                    "    /// * `input` - The input parameters for the {} operation\n",
+                    rpc.name
+                ));
+            }
+            output.push_str("    ///\n");
+        }
+
+        // Add returns documentation
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        if has_output {
+            output.push_str(&format!(
+                "    /// Returns `Ok({}Output)` on success, containing the operation result.\n",
+                rpc_type_name
+            ));
+        } else {
+            output.push_str("    /// Returns `Ok(())` on success.\n");
+        }
+        output.push_str("    ///\n");
 
         // Add error handling documentation
-        output.push_str("    ///\n");
         output.push_str("    /// # Errors\n");
         output.push_str("    ///\n");
-        output.push_str("    /// Returns an error if the RPC operation fails.\n");
+        if self.config.enable_restful_rpcs {
+            output.push_str("    /// Returns an error if:\n");
+            if has_input {
+                output.push_str(
+                    "    /// - Input serialization fails (`RpcError::SerializationError`)\n",
+                );
+            }
+            output.push_str("    /// - The HTTP request fails (`RpcError::TransportError`)\n");
+            output.push_str("    /// - The server returns an error status:\n");
+            output.push_str("    ///   - 400: `RpcError::InvalidInput`\n");
+            output.push_str("    ///   - 401/403: `RpcError::Unauthorized`\n");
+            output.push_str("    ///   - 404: `RpcError::NotFound`\n");
+            output.push_str("    ///   - 500-599: `RpcError::ServerError`\n");
+            if has_output {
+                output.push_str(
+                    "    /// - Response deserialization fails (`RpcError::DeserializationError`)\n",
+                );
+            }
+        } else {
+            output.push_str("    /// Returns `RpcError::NotImplemented` as RESTful RPC generation is disabled.\n");
+        }
+        output.push_str("    ///\n");
+
+        // Add usage example
+        if self.config.enable_restful_rpcs {
+            output.push_str("    /// # Example\n");
+            output.push_str("    ///\n");
+            output.push_str("    /// ```rust,ignore\n");
+            output.push_str(&format!(
+                "    /// use {}::*;\n",
+                module.name.replace('-', "_")
+            ));
+            output.push_str("    ///\n");
+            output.push_str("    /// #[tokio::main]\n");
+            output.push_str("    /// async fn main() -> Result<(), RpcError> {\n");
+            output.push_str("    ///     // Create a transport adapter\n");
+            output.push_str(
+                "    ///     let transport = reqwest_adapter::ReqwestTransport::new();\n",
+            );
+            output.push_str("    ///\n");
+            output.push_str("    ///     // Create a client for the RESTCONF server\n");
+            output.push_str("    ///     let client = RestconfClient::new(\n");
+            output.push_str("    ///         \"https://device.example.com\",\n");
+            output.push_str("    ///         transport\n");
+            output.push_str("    ///     )?;\n");
+            output.push_str("    ///\n");
+
+            if has_input {
+                output.push_str("    ///     // Prepare input parameters\n");
+                output.push_str(&format!(
+                    "    ///     let input = {}Input {{\n",
+                    rpc_type_name
+                ));
+                output.push_str("    ///         // Set input fields here\n");
+                output.push_str("    ///         // ...\n");
+                output.push_str("    ///     };\n");
+                output.push_str("    ///\n");
+                output.push_str("    ///     // Execute the RPC operation\n");
+                output.push_str(&format!(
+                    "    ///     let result = {}(&client, input).await?;\n",
+                    function_name
+                ));
+            } else {
+                output.push_str("    ///     // Execute the RPC operation\n");
+                output.push_str(&format!(
+                    "    ///     let result = {}(&client).await?;\n",
+                    function_name
+                ));
+            }
+
+            if has_output {
+                output.push_str("    ///\n");
+                output.push_str("    ///     // Process the result\n");
+                output.push_str("    ///     println!(\"Operation completed successfully\");\n");
+            }
+
+            output.push_str("    ///\n");
+            output.push_str("    ///     Ok(())\n");
+            output.push_str("    /// }\n");
+            output.push_str("    /// ```\n");
+        }
 
         // Determine input parameter type
         let input_param = if let Some(ref input_nodes) = rpc.input {

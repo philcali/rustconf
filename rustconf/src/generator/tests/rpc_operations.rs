@@ -45,7 +45,8 @@ fn test_generate_rpc_with_no_input_or_output() {
 
     // Check error documentation
     assert!(content.contains("/// # Errors"));
-    assert!(content.contains("/// Returns an error if the RPC operation fails."));
+    assert!(content
+        .contains("/// Returns `RpcError::NotImplemented` as RESTful RPC generation is disabled."));
 }
 
 #[test]
@@ -1060,5 +1061,171 @@ fn test_stub_rpc_function_without_input() {
     assert!(
         content.contains("Err(RpcError::NotImplemented)"),
         "Stub function should return NotImplemented error"
+    );
+}
+
+#[test]
+fn test_rpc_documentation_with_restful_enabled() {
+    // Test that comprehensive documentation is generated for RESTful RPCs
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "interface-mgmt".to_string(),
+        namespace: "urn:interface-mgmt".to_string(),
+        prefix: "if".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "reset-interface".to_string(),
+            description: Some("Reset a network interface to its default state".to_string()),
+            input: Some(vec![DataNode::Leaf(Leaf {
+                name: "interface-name".to_string(),
+                description: Some("Name of the interface to reset".to_string()),
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: true,
+            })]),
+            output: Some(vec![DataNode::Leaf(Leaf {
+                name: "status".to_string(),
+                description: Some("Status of the reset operation".to_string()),
+                type_spec: TypeSpec::String {
+                    length: None,
+                    pattern: None,
+                },
+                mandatory: true,
+                default: None,
+                config: false,
+            })]),
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that YANG description is included
+    assert!(
+        content.contains("/// Reset a network interface to its default state"),
+        "Should include RPC description from YANG"
+    );
+
+    // Check that parameters are documented
+    assert!(
+        content.contains("/// # Arguments"),
+        "Should have Arguments section"
+    );
+    assert!(
+        content
+            .contains("/// * `client` - The RestconfClient to use for executing the RPC request"),
+        "Should document client parameter"
+    );
+    assert!(
+        content.contains("/// * `input` - The input parameters for the reset-interface operation"),
+        "Should document input parameter"
+    );
+
+    // Check that return type is documented
+    assert!(
+        content.contains("/// # Returns"),
+        "Should have Returns section"
+    );
+    assert!(
+        content.contains(
+            "/// Returns `Ok(ResetInterfaceOutput)` on success, containing the operation result."
+        ),
+        "Should document return type"
+    );
+
+    // Check that errors are documented
+    assert!(
+        content.contains("/// # Errors"),
+        "Should have Errors section"
+    );
+    assert!(
+        content.contains("/// Returns an error if:"),
+        "Should list error conditions"
+    );
+    assert!(
+        content.contains("/// - Input serialization fails (`RpcError::SerializationError`)"),
+        "Should document serialization errors"
+    );
+    assert!(
+        content.contains("/// - The HTTP request fails (`RpcError::TransportError`)"),
+        "Should document transport errors"
+    );
+    assert!(
+        content.contains("/// - The server returns an error status:"),
+        "Should document HTTP status errors"
+    );
+    assert!(
+        content.contains("///   - 400: `RpcError::InvalidInput`"),
+        "Should document 400 error"
+    );
+    assert!(
+        content.contains("///   - 401/403: `RpcError::Unauthorized`"),
+        "Should document auth errors"
+    );
+    assert!(
+        content.contains("///   - 404: `RpcError::NotFound`"),
+        "Should document 404 error"
+    );
+    assert!(
+        content.contains("///   - 500-599: `RpcError::ServerError`"),
+        "Should document server errors"
+    );
+    assert!(
+        content.contains("/// - Response deserialization fails (`RpcError::DeserializationError`)"),
+        "Should document deserialization errors"
+    );
+
+    // Check that usage example is included
+    assert!(
+        content.contains("/// # Example"),
+        "Should have Example section"
+    );
+    assert!(
+        content.contains("/// ```rust,ignore"),
+        "Should have example code block"
+    );
+    assert!(
+        content.contains("/// use interface_mgmt::*;"),
+        "Should show module import"
+    );
+    assert!(
+        content.contains("/// #[tokio::main]"),
+        "Should show async main"
+    );
+    assert!(
+        content.contains("/// let transport = reqwest_adapter::ReqwestTransport::new();"),
+        "Should show transport creation"
+    );
+    assert!(
+        content.contains("/// let client = RestconfClient::new("),
+        "Should show client creation"
+    );
+    assert!(
+        content.contains("device.example.com"),
+        "Should show example URL"
+    );
+    assert!(
+        content.contains("Input {"),
+        "Should show input type construction"
+    );
+    assert!(
+        content.contains("reset_interface(&client, input).await?;"),
+        "Should show function call"
+    );
+    assert!(
+        content.contains("Operation completed successfully"),
+        "Should show result processing"
     );
 }
