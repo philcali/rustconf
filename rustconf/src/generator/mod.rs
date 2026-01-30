@@ -168,6 +168,10 @@ impl CodeGenerator {
                 content.push('\n');
                 content.push_str(&ops_gen.generate_request_interceptor());
                 content.push('\n');
+                content.push_str(&ops_gen.generate_restconf_client());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_restconf_client_impl());
+                content.push('\n');
             }
 
             content.push_str(&ops_gen.generate_rpc_error());
