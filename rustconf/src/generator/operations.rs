@@ -1708,9 +1708,15 @@ impl<'a> OperationsGenerator<'a> {
         // Generate ReqwestTransport struct
         output.push_str("    /// HTTP transport implementation using reqwest.\n");
         output.push_str("    ///\n");
-        output.push_str("    /// This adapter provides HTTP execution using the `reqwest` library, which is\n");
-        output.push_str("    /// a high-level HTTP client built on top of `hyper` and `tokio`. It provides\n");
-        output.push_str("    /// a convenient API with automatic connection pooling, redirect handling, and\n");
+        output.push_str(
+            "    /// This adapter provides HTTP execution using the `reqwest` library, which is\n",
+        );
+        output.push_str(
+            "    /// a high-level HTTP client built on top of `hyper` and `tokio`. It provides\n",
+        );
+        output.push_str(
+            "    /// a convenient API with automatic connection pooling, redirect handling, and\n",
+        );
         output.push_str("    /// timeout management.\n");
         output.push_str("    ///\n");
         output.push_str("    /// # Feature Flag\n");
@@ -1720,7 +1726,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    ///\n");
         output.push_str("    /// ```toml\n");
         output.push_str("    /// [dependencies]\n");
-        output.push_str("    /// my-bindings = { version = \"0.1\", features = [\"reqwest-client\"] }\n");
+        output.push_str(
+            "    /// my-bindings = { version = \"0.1\", features = [\"reqwest-client\"] }\n",
+        );
         output.push_str("    /// ```\n");
         output.push_str("    ///\n");
         output.push_str("    /// # Examples\n");
@@ -1759,9 +1767,11 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    ///     // Create a custom reqwest client with specific settings\n");
         output.push_str("    ///     let reqwest_client = reqwest::Client::builder()\n");
         output.push_str("    ///         .timeout(Duration::from_secs(30))\n");
-        output.push_str("    ///         .danger_accept_invalid_certs(true) // For testing only!\n");
+        output
+            .push_str("    ///         .danger_accept_invalid_certs(true) // For testing only!\n");
         output.push_str("    ///         .build()\n");
-        output.push_str("    ///         .map_err(|e| RpcError::TransportError(e.to_string()))?;\n");
+        output
+            .push_str("    ///         .map_err(|e| RpcError::TransportError(e.to_string()))?;\n");
         output.push_str("    ///\n");
         output.push_str("    ///     // Create transport with custom client\n");
         output.push_str("    ///     let transport = reqwest_adapter::ReqwestTransport::with_client(reqwest_client);\n");
@@ -1795,7 +1805,8 @@ impl<'a> OperationsGenerator<'a> {
 
         // Generate constructor methods
         output.push_str("    impl ReqwestTransport {\n");
-        output.push_str("        /// Create a new reqwest transport with default client settings.\n");
+        output
+            .push_str("        /// Create a new reqwest transport with default client settings.\n");
         output.push_str("        ///\n");
         output.push_str("        /// This creates a `reqwest::Client` with default configuration, which includes:\n");
         output.push_str("        /// - Connection pooling\n");
@@ -1818,7 +1829,8 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("            }\n");
         output.push_str("        }\n\n");
 
-        output.push_str("        /// Create a new reqwest transport with a custom reqwest client.\n");
+        output
+            .push_str("        /// Create a new reqwest transport with a custom reqwest client.\n");
         output.push_str("        ///\n");
         output.push_str("        /// This allows you to configure the reqwest client with custom settings such as:\n");
         output.push_str("        /// - Custom timeouts\n");
@@ -1833,7 +1845,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("        ///\n");
         output.push_str("        /// # Returns\n");
         output.push_str("        ///\n");
-        output.push_str("        /// Returns a new `ReqwestTransport` instance using the provided client.\n");
+        output.push_str(
+            "        /// Returns a new `ReqwestTransport` instance using the provided client.\n",
+        );
         output.push_str("        ///\n");
         output.push_str("        /// # Examples\n");
         output.push_str("        ///\n");
@@ -1866,7 +1880,9 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("            };\n\n");
 
         output.push_str("            // Build reqwest request\n");
-        output.push_str("            let mut req_builder = self.client.request(method, &request.url);\n\n");
+        output.push_str(
+            "            let mut req_builder = self.client.request(method, &request.url);\n\n",
+        );
 
         output.push_str("            // Add headers\n");
         output.push_str("            for (key, value) in request.headers {\n");

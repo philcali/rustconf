@@ -113,7 +113,9 @@ fn test_reqwest_adapter_generation() {
         "ReqwestTransport should implement HttpTransport trait"
     );
     assert!(
-        content.contains("async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError>"),
+        content.contains(
+            "async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError>"
+        ),
         "execute method should be implemented"
     );
 
@@ -165,7 +167,8 @@ fn test_reqwest_adapter_generation() {
         "Should convert reqwest errors to RpcError::TransportError"
     );
     assert!(
-        content.contains("RpcError::TransportError(format!(\"Failed to read response body: {}\", e))"),
+        content
+            .contains("RpcError::TransportError(format!(\"Failed to read response body: {}\", e))"),
         "Should convert body read errors to RpcError::TransportError"
     );
 
@@ -328,7 +331,7 @@ fn test_reqwest_adapter_respects_derive_config() {
     // Find the ReqwestTransport struct definition
     let reqwest_section = content
         .split("pub struct ReqwestTransport")
-        .nth(0)
+        .next()
         .expect("ReqwestTransport struct should exist");
 
     // Verify derives are applied when enabled
