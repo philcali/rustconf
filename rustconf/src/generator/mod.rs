@@ -9,6 +9,7 @@ pub mod config;
 pub mod error;
 pub mod formatting;
 pub mod naming;
+pub mod url_builder;
 pub mod validation;
 
 // Sub-generators for modular code generation
