@@ -1693,4 +1693,231 @@ impl<'a> OperationsGenerator<'a> {
 
         format!("#[derive({})]\n", derives.join(", "))
     }
+
+    /// Generate reqwest transport adapter module.
+    pub fn generate_reqwest_adapter(&self) -> String {
+        let mut output = String::new();
+
+        // Add feature gate
+        output.push_str("#[cfg(feature = \"reqwest-client\")]\n");
+        output.push_str("pub mod reqwest_adapter {\n");
+        output.push_str("    use super::*;\n");
+        output.push_str("    use async_trait::async_trait;\n");
+        output.push('\n');
+
+        // Generate ReqwestTransport struct
+        output.push_str("    /// HTTP transport implementation using reqwest.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This adapter provides HTTP execution using the `reqwest` library, which is\n",
+        );
+        output.push_str(
+            "    /// a high-level HTTP client built on top of `hyper` and `tokio`. It provides\n",
+        );
+        output.push_str(
+            "    /// a convenient API with automatic connection pooling, redirect handling, and\n",
+        );
+        output.push_str("    /// timeout management.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Feature Flag\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// This adapter is only available when the `reqwest-client` feature is enabled.\n");
+        output.push_str("    /// Add it to your `Cargo.toml`:\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```toml\n");
+        output.push_str("    /// [dependencies]\n");
+        output.push_str(
+            "    /// my-bindings = { version = \"0.1\", features = [\"reqwest-client\"] }\n",
+        );
+        output.push_str("    /// ```\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ## Basic usage with default client\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// use my_bindings::*;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// #[tokio::main]\n");
+        output.push_str("    /// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("    ///     // Create a transport with default settings\n");
+        output.push_str("    ///     let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Create a RESTCONF client\n");
+        output.push_str("    ///     let client = RestconfClient::new(\n");
+        output.push_str("    ///         \"https://device.example.com\",\n");
+        output.push_str("    ///         transport\n");
+        output.push_str("    ///     )?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Use the client to call RPC operations\n");
+        output.push_str("    ///     // let result = some_rpc_function(&client, input).await?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     Ok(())\n");
+        output.push_str("    /// }\n");
+        output.push_str("    /// ```\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ## Using with a custom reqwest client\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// use my_bindings::*;\n");
+        output.push_str("    /// use std::time::Duration;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// #[tokio::main]\n");
+        output.push_str("    /// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("    ///     // Create a custom reqwest client with specific settings\n");
+        output.push_str("    ///     let reqwest_client = reqwest::Client::builder()\n");
+        output.push_str("    ///         .timeout(Duration::from_secs(30))\n");
+        output
+            .push_str("    ///         .danger_accept_invalid_certs(true) // For testing only!\n");
+        output.push_str("    ///         .build()\n");
+        output
+            .push_str("    ///         .map_err(|e| RpcError::TransportError(e.to_string()))?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Create transport with custom client\n");
+        output.push_str("    ///     let transport = reqwest_adapter::ReqwestTransport::with_client(reqwest_client);\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Create a RESTCONF client\n");
+        output.push_str("    ///     let client = RestconfClient::new(\n");
+        output.push_str("    ///         \"https://device.example.com\",\n");
+        output.push_str("    ///         transport\n");
+        output.push_str("    ///     )?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     Ok(())\n");
+        output.push_str("    /// }\n");
+        output.push_str("    /// ```\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+
+        if !derives.is_empty() {
+            output.push_str(&format!("    #[derive({})]\n", derives.join(", ")));
+        }
+
+        output.push_str("    pub struct ReqwestTransport {\n");
+        output.push_str("        /// The underlying reqwest client.\n");
+        output.push_str("        client: reqwest::Client,\n");
+        output.push_str("    }\n\n");
+
+        // Generate constructor methods
+        output.push_str("    impl ReqwestTransport {\n");
+        output
+            .push_str("        /// Create a new reqwest transport with default client settings.\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// This creates a `reqwest::Client` with default configuration, which includes:\n");
+        output.push_str("        /// - Connection pooling\n");
+        output.push_str("        /// - Automatic redirect following (up to 10 redirects)\n");
+        output.push_str("        /// - Gzip and deflate compression support\n");
+        output.push_str("        /// - Default timeout of 30 seconds\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Returns\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns a new `ReqwestTransport` instance.\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Examples\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// ```rust,ignore\n");
+        output.push_str("        /// let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("        /// ```\n");
+        output.push_str("        pub fn new() -> Self {\n");
+        output.push_str("            Self {\n");
+        output.push_str("                client: reqwest::Client::new(),\n");
+        output.push_str("            }\n");
+        output.push_str("        }\n\n");
+
+        output
+            .push_str("        /// Create a new reqwest transport with a custom reqwest client.\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// This allows you to configure the reqwest client with custom settings such as:\n");
+        output.push_str("        /// - Custom timeouts\n");
+        output.push_str("        /// - TLS/SSL configuration\n");
+        output.push_str("        /// - Proxy settings\n");
+        output.push_str("        /// - Connection pool limits\n");
+        output.push_str("        /// - Custom headers\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Arguments\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// * `client` - A configured `reqwest::Client` instance\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Returns\n");
+        output.push_str("        ///\n");
+        output.push_str(
+            "        /// Returns a new `ReqwestTransport` instance using the provided client.\n",
+        );
+        output.push_str("        ///\n");
+        output.push_str("        /// # Examples\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// ```rust,ignore\n");
+        output.push_str("        /// use std::time::Duration;\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// let reqwest_client = reqwest::Client::builder()\n");
+        output.push_str("        ///     .timeout(Duration::from_secs(60))\n");
+        output.push_str("        ///     .build()\n");
+        output.push_str("        ///     .unwrap();\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// let transport = reqwest_adapter::ReqwestTransport::with_client(reqwest_client);\n");
+        output.push_str("        /// ```\n");
+        output.push_str("        pub fn with_client(client: reqwest::Client) -> Self {\n");
+        output.push_str("            Self { client }\n");
+        output.push_str("        }\n");
+        output.push_str("    }\n\n");
+
+        // Generate HttpTransport trait implementation
+        output.push_str("    #[async_trait]\n");
+        output.push_str("    impl HttpTransport for ReqwestTransport {\n");
+        output.push_str("        async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError> {\n");
+        output.push_str("            // Convert HttpMethod to reqwest::Method\n");
+        output.push_str("            let method = match request.method {\n");
+        output.push_str("                HttpMethod::GET => reqwest::Method::GET,\n");
+        output.push_str("                HttpMethod::POST => reqwest::Method::POST,\n");
+        output.push_str("                HttpMethod::PUT => reqwest::Method::PUT,\n");
+        output.push_str("                HttpMethod::DELETE => reqwest::Method::DELETE,\n");
+        output.push_str("                HttpMethod::PATCH => reqwest::Method::PATCH,\n");
+        output.push_str("            };\n\n");
+
+        output.push_str("            // Build reqwest request\n");
+        output.push_str(
+            "            let mut req_builder = self.client.request(method, &request.url);\n\n",
+        );
+
+        output.push_str("            // Add headers\n");
+        output.push_str("            for (key, value) in request.headers {\n");
+        output.push_str("                req_builder = req_builder.header(key, value);\n");
+        output.push_str("            }\n\n");
+
+        output.push_str("            // Add body if present\n");
+        output.push_str("            if let Some(body) = request.body {\n");
+        output.push_str("                req_builder = req_builder.body(body);\n");
+        output.push_str("            }\n\n");
+
+        output.push_str("            // Execute request\n");
+        output.push_str("            let response = req_builder.send().await\n");
+        output.push_str("                .map_err(|e| RpcError::TransportError(format!(\"HTTP request failed: {}\", e)))?;\n\n");
+
+        output.push_str("            // Extract response data\n");
+        output.push_str("            let status_code = response.status().as_u16();\n");
+        output.push_str("            let headers = response.headers()\n");
+        output.push_str("                .iter()\n");
+        output.push_str("                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or(\"\").to_string()))\n");
+        output.push_str("                .collect();\n");
+        output.push_str("            let body = response.bytes().await\n");
+        output.push_str("                .map_err(|e| RpcError::TransportError(format!(\"Failed to read response body: {}\", e)))?\n");
+        output.push_str("                .to_vec();\n\n");
+
+        output.push_str("            Ok(HttpResponse {\n");
+        output.push_str("                status_code,\n");
+        output.push_str("                headers,\n");
+        output.push_str("                body,\n");
+        output.push_str("            })\n");
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+
+        output.push_str("}\n");
+
+        output
+    }
 }

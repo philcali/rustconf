@@ -120,6 +120,7 @@ mod crud_operations;
 mod error_mapping_test;
 mod integration;
 mod notifications;
+mod reqwest_adapter;
 mod restconf_client;
 mod rpc_error_generation;
 mod rpc_operations;
