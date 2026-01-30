@@ -141,7 +141,7 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
     - Return appropriate errors for serialization/deserialization failures
     - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 11.1, 11.2, 11.3, 11.4, 11.5_
   
-  - [ ] 5.3 Implement error mapping logic
+  - [x] 5.3 Implement error mapping logic
     - 200-299: Attempt deserialization
     - 400: Map to `RpcError::InvalidInput`
     - 401, 403: Map to `RpcError::Unauthorized`
@@ -151,7 +151,7 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
     - Include response body in error messages
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ] 5.4 Generate documentation for RPC functions
+  - [x] 5.4 Generate documentation for RPC functions
     - Include function description from YANG
     - Document parameters and return types
     - Include usage examples
@@ -188,7 +188,7 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - **Property 17: Transport Request Information Completeness**
   - **Validates: Requirements 15.5**
 
-- [ ] 6. Checkpoint - Ensure core functionality works
+- [x] 6. Checkpoint - Ensure core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Generate reqwest transport adapter
