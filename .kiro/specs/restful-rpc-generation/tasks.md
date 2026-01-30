@@ -97,12 +97,12 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - **Property 15: Interceptor After-Response Error Handling**
   - **Validates: Requirements 14.4**
 
-- [ ] 4. Implement URL generation logic
-  - [ ] 4.1 Create `UrlBuilder` helper struct
+- [x] 4. Implement URL generation logic
+  - [x] 4.1 Create `UrlBuilder` helper struct
     - Store `namespace_mode` configuration
     - _Requirements: 5.1, 5.2_
   
-  - [ ] 4.2 Implement `build_operation_url()` method
+  - [x] 4.2 Implement `build_operation_url()` method
     - Handle `NamespaceMode::Enabled` format: `/restconf/operations/{module}:{operation}`
     - Handle `NamespaceMode::Disabled` format: `/restconf/operations/{operation}`
     - URL-encode module and operation names using `urlencoding` crate
