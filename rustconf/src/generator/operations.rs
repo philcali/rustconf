@@ -434,15 +434,8 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("/// }\n");
         output.push_str("/// ```\n");
 
-        let mut derives = vec![];
-        if self.config.derive_debug {
-            derives.push("Debug");
-        }
-
-        if !derives.is_empty() {
-            output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
-        }
-
+        // Note: We don't derive Debug for RestconfClient because it contains
+        // a trait object (Box<dyn RequestInterceptor>) which doesn't implement Debug
         output.push_str("pub struct RestconfClient<T: HttpTransport> {\n");
         output.push_str("    /// The base URL for the RESTCONF server.\n");
         output.push_str("    base_url: String,\n");
@@ -1574,21 +1567,24 @@ impl<'a> OperationsGenerator<'a> {
             output.push_str("            .map_err(|e| RpcError::SerializationError(format!(\"Failed to serialize input: {}\", e)))?;\n\n");
         }
 
-        // Construct RESTCONF URL using UrlBuilder
+        // Construct RESTCONF URL inline
         output.push_str("        // Construct RESTCONF URL\n");
-        output.push_str(
-            "        let url_builder = crate::generator::url_builder::UrlBuilder::new(\n",
-        );
-        output.push_str(&format!(
-            "            crate::generator::config::NamespaceMode::{:?}\n",
-            self.config.restful_namespace_mode
-        ));
-        output.push_str("        );\n");
-        output.push_str("        let url = url_builder.build_operation_url(\n");
-        output.push_str("            client.base_url(),\n");
-        output.push_str(&format!("            \"{}\",\n", module.name));
-        output.push_str(&format!("            \"{}\"\n", rpc.name));
-        output.push_str("        );\n\n");
+        output.push_str("        let base = client.base_url().trim_end_matches('/');\n");
+
+        match self.config.restful_namespace_mode {
+            crate::generator::config::NamespaceMode::Enabled => {
+                output.push_str(&format!(
+                    "        let url = format!(\"{{}}/ restconf/operations/{{}}:{{}}\", base, urlencoding::encode(\"{}\"), urlencoding::encode(\"{}\"));\n\n",
+                    module.name, rpc.name
+                ));
+            }
+            crate::generator::config::NamespaceMode::Disabled => {
+                output.push_str(&format!(
+                    "        let url = format!(\"{{}}/restconf/operations/{{}}\", base, urlencoding::encode(\"{}\"));\n\n",
+                    rpc.name
+                ));
+            }
+        }
 
         // Build HttpRequest with POST method
         output.push_str("        // Build HTTP request\n");

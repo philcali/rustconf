@@ -262,14 +262,14 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - Test error conditions
   - _Requirements: 2.2, 2.4_
 
-- [ ] 9. Generate Cargo.toml template
-  - [ ] 9.1 Create Cargo.toml template for generated code
+- [x] 9. Generate Cargo.toml template
+  - [x] 9.1 Create Cargo.toml template for generated code
     - Include core dependencies: serde, serde_json, async-trait, urlencoding
     - Add optional dependencies: reqwest, hyper
     - Define feature flags: reqwest-client, hyper-client
     - _Requirements: 8.3, 8.4, 8.5_
   
-  - [ ] 9.2 Ensure generated code compiles without transport features
+  - [x] 9.2 Ensure generated code compiles without transport features
     - Test compilation with no features enabled
     - Verify only core traits and types are available
     - _Requirements: 8.6_
