@@ -443,6 +443,8 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    transport: T,\n");
         output.push_str("    /// Optional request interceptor for authentication, logging, etc.\n");
         output.push_str("    interceptor: Option<Box<dyn RequestInterceptor>>,\n");
+        output.push_str("    /// Optional error mapper for custom error handling.\n");
+        output.push_str("    error_mapper: Option<Box<dyn ErrorMapper>>,\n");
         output.push_str("}\n");
 
         output
@@ -514,6 +516,7 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("            base_url,\n");
         output.push_str("            transport,\n");
         output.push_str("            interceptor: None,\n");
+        output.push_str("            error_mapper: None,\n");
         output.push_str("        })\n");
         output.push_str("    }\n\n");
 
@@ -570,6 +573,61 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    /// ```\n");
         output.push_str("    pub fn with_interceptor(mut self, interceptor: impl RequestInterceptor + 'static) -> Self {\n");
         output.push_str("        self.interceptor = Some(Box::new(interceptor));\n");
+        output.push_str("        self\n");
+        output.push_str("    }\n\n");
+
+        // Generate with_error_mapper() builder method
+        output.push_str("    /// Add a custom error mapper to this client.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// Error mappers allow you to customize how HTTP status codes and response\n",
+        );
+        output.push_str(
+            "    /// bodies are converted to `RpcError` variants. This is useful for handling\n",
+        );
+        output.push_str("    /// servers with non-standard error responses or implementing application-specific\n");
+        output.push_str("    /// error handling logic.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// If no custom error mapper is provided, the `DefaultErrorMapper` is used,\n",
+        );
+        output.push_str("    /// which follows standard HTTP semantics.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `error_mapper` - The error mapper implementation to use\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns `self` to allow method chaining.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// use my_bindings::*;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// struct CustomErrorMapper;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// impl ErrorMapper for CustomErrorMapper {\n");
+        output.push_str("    ///     fn map_error(&self, response: &HttpResponse) -> RpcError {\n");
+        output.push_str("    ///         // Custom error mapping logic\n");
+        output.push_str("    ///         let body_text = String::from_utf8_lossy(&response.body).to_string();\n");
+        output.push_str("    ///         match response.status_code {\n");
+        output.push_str("    ///             400 => RpcError::InvalidInput(body_text),\n");
+        output.push_str("    ///             _ => RpcError::UnknownError(body_text),\n");
+        output.push_str("    ///         }\n");
+        output.push_str("    ///     }\n");
+        output.push_str("    /// }\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// let transport = reqwest_adapter::ReqwestTransport::new();\n");
+        output.push_str("    /// let client = RestconfClient::new(\n");
+        output.push_str("    ///     \"https://router.example.com\",\n");
+        output.push_str("    ///     transport\n");
+        output.push_str("    /// )?\n");
+        output.push_str("    /// .with_error_mapper(CustomErrorMapper);\n");
+        output.push_str("    /// ```\n");
+        output.push_str("    pub fn with_error_mapper(mut self, error_mapper: impl ErrorMapper + 'static) -> Self {\n");
+        output.push_str("        self.error_mapper = Some(Box::new(error_mapper));\n");
         output.push_str("        self\n");
         output.push_str("    }\n\n");
 
@@ -917,6 +975,206 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("}\n\n");
 
         output.push_str("impl std::error::Error for RpcError {}\n");
+
+        output
+    }
+
+    /// Generate ErrorMapper trait for custom error mapping strategies.
+    pub fn generate_error_mapper(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// Error mapper for converting HTTP responses to RPC errors.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This trait provides a pluggable interface for mapping HTTP status codes and\n",
+        );
+        output.push_str(
+            "/// response bodies to `RpcError` variants. This allows users to customize error\n",
+        );
+        output.push_str(
+            "/// handling for servers with non-standard error responses or to implement\n",
+        );
+        output.push_str("/// application-specific error mapping logic.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Thread Safety\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// Implementations must be `Send + Sync` to support concurrent usage across\n",
+        );
+        output.push_str("/// multiple async tasks and threads.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Default Implementation\n");
+        output.push_str("///\n");
+        output
+            .push_str("/// The `DefaultErrorMapper` provides standard HTTP status code mapping:\n");
+        output.push_str("/// - 400 → `RpcError::InvalidInput`\n");
+        output.push_str("/// - 401, 403 → `RpcError::Unauthorized`\n");
+        output.push_str("/// - 404 → `RpcError::NotFound`\n");
+        output.push_str("/// - 500-599 → `RpcError::ServerError`\n");
+        output.push_str("/// - Other → `RpcError::UnknownError`\n");
+        output.push_str("///\n");
+        output.push_str("/// # Examples\n");
+        output.push_str("///\n");
+        output.push_str("/// ## Implementing a custom error mapper\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// struct CustomErrorMapper;\n");
+        output.push_str("///\n");
+        output.push_str("/// impl ErrorMapper for CustomErrorMapper {\n");
+        output.push_str("///     fn map_error(&self, response: &HttpResponse) -> RpcError {\n");
+        output.push_str(
+            "///         let body_text = String::from_utf8_lossy(&response.body).to_string();\n",
+        );
+        output.push_str("///         \n");
+        output.push_str("///         // Custom mapping logic for your server's error format\n");
+        output.push_str("///         match response.status_code {\n");
+        output.push_str("///             400 => RpcError::InvalidInput(body_text),\n");
+        output.push_str("///             401 | 403 => RpcError::Unauthorized(body_text),\n");
+        output.push_str("///             404 => RpcError::NotFound(body_text),\n");
+        output.push_str("///             429 => RpcError::ServerError {\n");
+        output.push_str("///                 code: 429,\n");
+        output.push_str("///                 message: \"Rate limit exceeded\".to_string(),\n");
+        output.push_str("///             },\n");
+        output.push_str("///             500..=599 => RpcError::ServerError {\n");
+        output.push_str("///                 code: response.status_code,\n");
+        output.push_str("///                 message: body_text,\n");
+        output.push_str("///             },\n");
+        output.push_str("///             _ => RpcError::UnknownError(\n");
+        output.push_str("///                 format!(\"Unexpected status code {}: {}\", response.status_code, body_text)\n");
+        output.push_str("///             ),\n");
+        output.push_str("///         }\n");
+        output.push_str("///     }\n");
+        output.push_str("/// }\n");
+        output.push_str("/// ```\n");
+        output.push_str("pub trait ErrorMapper: Send + Sync {\n");
+        output.push_str("    /// Map an HTTP response to an RPC error.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method is called when an HTTP response indicates an error condition.\n",
+        );
+        output.push_str(
+            "    /// The implementation should inspect the response status code and body to\n",
+        );
+        output.push_str("    /// determine the appropriate `RpcError` variant to return.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Arguments\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// * `response` - The HTTP response to map to an error\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Returns\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// Returns an `RpcError` variant appropriate for the response.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// let error = error_mapper.map_error(&response);\n");
+        output.push_str("    /// match error {\n");
+        output.push_str(
+            "    ///     RpcError::InvalidInput(msg) => println!(\"Invalid input: {}\", msg),\n",
+        );
+        output.push_str(
+            "    ///     RpcError::Unauthorized(msg) => println!(\"Unauthorized: {}\", msg),\n",
+        );
+        output.push_str("    ///     _ => println!(\"Other error: {}\", error),\n");
+        output.push_str("    /// }\n");
+        output.push_str("    /// ```\n");
+        output.push_str("    fn map_error(&self, response: &HttpResponse) -> RpcError;\n");
+        output.push_str("}\n");
+
+        output
+    }
+
+    /// Generate DefaultErrorMapper struct implementation.
+    pub fn generate_default_error_mapper(&self) -> String {
+        let mut output = String::new();
+
+        output.push_str("/// Default error mapper implementation.\n");
+        output.push_str("///\n");
+        output.push_str(
+            "/// This struct provides the standard HTTP status code to `RpcError` mapping\n",
+        );
+        output.push_str(
+            "/// used by default when no custom error mapper is configured. It follows\n",
+        );
+        output.push_str("/// standard HTTP semantics and RESTCONF conventions.\n");
+        output.push_str("///\n");
+        output.push_str("/// # Mapping Rules\n");
+        output.push_str("///\n");
+        output.push_str("/// - **400 Bad Request** → `RpcError::InvalidInput`\n");
+        output.push_str(
+            "///   - Indicates the request was malformed or contained invalid parameters\n",
+        );
+        output.push_str("///   - Response body is included in the error message\n");
+        output.push_str("///\n");
+        output.push_str("/// - **401 Unauthorized, 403 Forbidden** → `RpcError::Unauthorized`\n");
+        output.push_str("///   - Indicates authentication failed or insufficient permissions\n");
+        output.push_str("///   - Response body is included in the error message\n");
+        output.push_str("///\n");
+        output.push_str("/// - **404 Not Found** → `RpcError::NotFound`\n");
+        output.push_str("///   - Indicates the requested resource does not exist\n");
+        output.push_str("///   - Response body is included in the error message\n");
+        output.push_str("///\n");
+        output.push_str("/// - **500-599 Server Errors** → `RpcError::ServerError`\n");
+        output.push_str("///   - Indicates an internal server error or service unavailable\n");
+        output.push_str("///   - Status code and response body are included in the error\n");
+        output.push_str("///\n");
+        output.push_str("/// - **Other Status Codes** → `RpcError::UnknownError`\n");
+        output.push_str("///   - Indicates an unexpected or unhandled status code\n");
+        output
+            .push_str("///   - Status code and response body are included in the error message\n");
+        output.push_str("///\n");
+        output.push_str("/// # Examples\n");
+        output.push_str("///\n");
+        output.push_str("/// ```rust,ignore\n");
+        output.push_str("/// use my_bindings::*;\n");
+        output.push_str("///\n");
+        output.push_str("/// let mapper = DefaultErrorMapper;\n");
+        output.push_str("///\n");
+        output.push_str("/// let response = HttpResponse {\n");
+        output.push_str("///     status_code: 404,\n");
+        output.push_str("///     headers: vec![],\n");
+        output.push_str("///     body: b\"Resource not found\".to_vec(),\n");
+        output.push_str("/// };\n");
+        output.push_str("///\n");
+        output.push_str("/// let error = mapper.map_error(&response);\n");
+        output.push_str("/// assert!(matches!(error, RpcError::NotFound(_)));\n");
+        output.push_str("/// ```\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+        derives.push("Copy");
+
+        output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
+        output.push_str("pub struct DefaultErrorMapper;\n\n");
+
+        output.push_str("impl ErrorMapper for DefaultErrorMapper {\n");
+        output.push_str("    fn map_error(&self, response: &HttpResponse) -> RpcError {\n");
+        output.push_str(
+            "        let body_text = String::from_utf8_lossy(&response.body).to_string();\n",
+        );
+        output.push_str("        \n");
+        output.push_str("        match response.status_code {\n");
+        output.push_str("            400 => RpcError::InvalidInput(body_text),\n");
+        output.push_str("            401 | 403 => RpcError::Unauthorized(body_text),\n");
+        output.push_str("            404 => RpcError::NotFound(body_text),\n");
+        output.push_str("            500..=599 => RpcError::ServerError {\n");
+        output.push_str("                code: response.status_code,\n");
+        output.push_str("                message: body_text,\n");
+        output.push_str("            },\n");
+        output.push_str("            _ => RpcError::UnknownError(\n");
+        output.push_str("                format!(\"Unexpected status code {}: {}\", response.status_code, body_text)\n");
+        output.push_str("            ),\n");
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+        output.push_str("}\n");
 
         output
     }
