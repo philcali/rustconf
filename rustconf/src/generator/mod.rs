@@ -88,6 +88,17 @@ impl CodeGenerator {
             content: module_content,
         });
 
+        // Generate Cargo.toml if RESTful RPCs are enabled
+        if self.config.enable_restful_rpcs {
+            let cargo_toml_content = self.generate_cargo_toml(module);
+            let cargo_toml_path = self.config.output_dir.join("Cargo.toml");
+
+            files.push(GeneratedFile {
+                path: cargo_toml_path,
+                content: cargo_toml_content,
+            });
+        }
+
         Ok(GeneratedCode { files })
     }
 
@@ -271,6 +282,38 @@ impl CodeGenerator {
         }
 
         uses
+    }
+
+    /// Generate Cargo.toml template for generated code.
+    fn generate_cargo_toml(&self, _module: &YangModule) -> String {
+        let mut content = String::new();
+
+        // Package section
+        content.push_str("[package]\n");
+        content.push_str(&format!("name = \"{}\"\n", self.config.module_name));
+        content.push_str("version = \"0.1.0\"\n");
+        content.push_str("edition = \"2021\"\n\n");
+
+        // Dependencies section
+        content.push_str("[dependencies]\n");
+        content.push_str("serde = { version = \"1.0\", features = [\"derive\"] }\n");
+        content.push_str("serde_json = \"1.0\"\n");
+        content.push_str("async-trait = \"0.1\"\n");
+        content.push_str("urlencoding = \"2.1\"\n\n");
+
+        // Optional transport dependencies
+        content.push_str("# Optional transport dependencies\n");
+        content
+            .push_str("reqwest = { version = \"0.11\", features = [\"json\"], optional = true }\n");
+        content.push_str("hyper = { version = \"0.14\", optional = true }\n");
+        content.push_str("hyper-tls = { version = \"0.5\", optional = true }\n\n");
+
+        // Features section
+        content.push_str("[features]\n");
+        content.push_str("reqwest-client = [\"reqwest\"]\n");
+        content.push_str("hyper-client = [\"hyper\", \"hyper-tls\"]\n\n");
+
+        content
     }
 
     /// Write generated files to the output directory.
