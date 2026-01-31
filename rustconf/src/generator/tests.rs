@@ -118,6 +118,7 @@ fn test_write_files_creates_output_directory() {
 mod cargo_toml_generation;
 mod config_validation;
 mod crud_operations;
+mod error_mapper_test;
 mod error_mapping_test;
 mod feature_compilation;
 mod hyper_adapter;

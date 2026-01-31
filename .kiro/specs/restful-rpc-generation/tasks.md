@@ -281,19 +281,19 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - Test compilation with no features
   - _Requirements: 8.6_
 
-- [ ] 10. Generate ErrorMapper trait and default implementation
-  - [ ] 10.1 Generate `ErrorMapper` trait
+- [x] 10. Generate ErrorMapper trait and default implementation
+  - [x] 10.1 Generate `ErrorMapper` trait
     - Include `Send + Sync` bounds
     - Define `map_error(&self, response: &HttpResponse) -> RpcError` method
     - _Requirements: 7.6_
   
-  - [ ] 10.2 Generate `DefaultErrorMapper` struct
+  - [x] 10.2 Generate `DefaultErrorMapper` struct
     - Implement `ErrorMapper` trait
     - Map status codes to RpcError variants
     - Include response body in error messages
     - _Requirements: 7.6_
   
-  - [ ] 10.3 Add optional error_mapper field to RestconfClient
+  - [x] 10.3 Add optional error_mapper field to RestconfClient
     - Allow custom error mapper injection
     - Use DefaultErrorMapper when not provided
     - _Requirements: 7.7_

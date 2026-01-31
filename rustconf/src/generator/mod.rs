@@ -189,6 +189,14 @@ impl CodeGenerator {
             content.push_str(&ops_gen.generate_rpc_error());
             content.push('\n');
 
+            // Generate ErrorMapper trait and DefaultErrorMapper if RESTful RPCs are enabled
+            if self.config.enable_restful_rpcs {
+                content.push_str(&ops_gen.generate_error_mapper());
+                content.push('\n');
+                content.push_str(&ops_gen.generate_default_error_mapper());
+                content.push('\n');
+            }
+
             // Generate reqwest transport adapter if RESTful RPCs are enabled
             if self.config.enable_restful_rpcs {
                 content.push_str(&ops_gen.generate_reqwest_adapter());
