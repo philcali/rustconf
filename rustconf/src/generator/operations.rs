@@ -1920,4 +1920,168 @@ impl<'a> OperationsGenerator<'a> {
 
         output
     }
+
+    /// Generate hyper transport adapter module.
+    pub fn generate_hyper_adapter(&self) -> String {
+        let mut output = String::new();
+
+        // Add feature gate
+        output.push_str("#[cfg(feature = \"hyper-client\")]\n");
+        output.push_str("pub mod hyper_adapter {\n");
+        output.push_str("    use super::*;\n");
+        output.push_str("    use async_trait::async_trait;\n");
+        output.push('\n');
+
+        // Generate HyperTransport struct
+        output.push_str("    /// HTTP transport implementation using hyper.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This adapter provides HTTP execution using the `hyper` library, which is\n",
+        );
+        output.push_str(
+            "    /// a low-level HTTP implementation that provides fine-grained control over\n",
+        );
+        output.push_str(
+            "    /// HTTP connections and requests. It is built on top of `tokio` and provides\n",
+        );
+        output.push_str("    /// excellent performance for high-throughput scenarios.\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Feature Flag\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This adapter is only available when the `hyper-client` feature is enabled.\n",
+        );
+        output.push_str("    /// Add it to your `Cargo.toml`:\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```toml\n");
+        output.push_str("    /// [dependencies]\n");
+        output.push_str(
+            "    /// my-bindings = { version = \"0.1\", features = [\"hyper-client\"] }\n",
+        );
+        output.push_str("    /// ```\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// # Examples\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ## Basic usage with default client\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// ```rust,ignore\n");
+        output.push_str("    /// use my_bindings::*;\n");
+        output.push_str("    ///\n");
+        output.push_str("    /// #[tokio::main]\n");
+        output.push_str("    /// async fn main() -> Result<(), RpcError> {\n");
+        output.push_str("    ///     // Create a transport with default settings\n");
+        output.push_str("    ///     let transport = hyper_adapter::HyperTransport::new();\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Create a RESTCONF client\n");
+        output.push_str("    ///     let client = RestconfClient::new(\n");
+        output.push_str("    ///         \"https://device.example.com\",\n");
+        output.push_str("    ///         transport\n");
+        output.push_str("    ///     )?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     // Use the client to call RPC operations\n");
+        output.push_str("    ///     // let result = some_rpc_function(&client, input).await?;\n");
+        output.push_str("    ///\n");
+        output.push_str("    ///     Ok(())\n");
+        output.push_str("    /// }\n");
+        output.push_str("    /// ```\n");
+
+        let mut derives = vec![];
+        if self.config.derive_debug {
+            derives.push("Debug");
+        }
+        if self.config.derive_clone {
+            derives.push("Clone");
+        }
+
+        if !derives.is_empty() {
+            output.push_str(&format!("    #[derive({})]\n", derives.join(", ")));
+        }
+
+        output.push_str("    pub struct HyperTransport {\n");
+        output.push_str("        /// The underlying hyper client.\n");
+        output.push_str("        client: hyper::Client<hyper::client::HttpConnector>,\n");
+        output.push_str("    }\n\n");
+
+        // Generate constructor method
+        output.push_str("    impl HyperTransport {\n");
+        output.push_str("        /// Create a new hyper transport with default client settings.\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// This creates a `hyper::Client` with default configuration, which includes:\n");
+        output.push_str("        /// - HTTP/1.1 and HTTP/2 support\n");
+        output.push_str("        /// - Connection pooling\n");
+        output.push_str("        /// - Keep-alive connections\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Returns\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// Returns a new `HyperTransport` instance.\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// # Examples\n");
+        output.push_str("        ///\n");
+        output.push_str("        /// ```rust,ignore\n");
+        output.push_str("        /// let transport = hyper_adapter::HyperTransport::new();\n");
+        output.push_str("        /// ```\n");
+        output.push_str("        pub fn new() -> Self {\n");
+        output.push_str("            Self {\n");
+        output.push_str("                client: hyper::Client::new(),\n");
+        output.push_str("            }\n");
+        output.push_str("        }\n");
+        output.push_str("    }\n\n");
+
+        // Generate HttpTransport trait implementation
+        output.push_str("    #[async_trait]\n");
+        output.push_str("    impl HttpTransport for HyperTransport {\n");
+        output.push_str("        async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError> {\n");
+        output.push_str("            // Convert HttpMethod to hyper::Method\n");
+        output.push_str("            let method = match request.method {\n");
+        output.push_str("                HttpMethod::GET => hyper::Method::GET,\n");
+        output.push_str("                HttpMethod::POST => hyper::Method::POST,\n");
+        output.push_str("                HttpMethod::PUT => hyper::Method::PUT,\n");
+        output.push_str("                HttpMethod::DELETE => hyper::Method::DELETE,\n");
+        output.push_str("                HttpMethod::PATCH => hyper::Method::PATCH,\n");
+        output.push_str("            };\n\n");
+
+        output.push_str("            // Build hyper request\n");
+        output.push_str("            let mut req_builder = hyper::Request::builder()\n");
+        output.push_str("                .method(method)\n");
+        output.push_str("                .uri(&request.url);\n\n");
+
+        output.push_str("            // Add headers\n");
+        output.push_str("            for (key, value) in request.headers {\n");
+        output.push_str("                req_builder = req_builder.header(key, value);\n");
+        output.push_str("            }\n\n");
+
+        output.push_str("            // Build request with body\n");
+        output.push_str("            let body = request.body.map(hyper::Body::from).unwrap_or_else(hyper::Body::empty);\n");
+        output.push_str("            let req = req_builder.body(body)\n");
+        output.push_str("                .map_err(|e| RpcError::TransportError(format!(\"Failed to build request: {}\", e)))?;\n\n");
+
+        output.push_str("            // Execute request\n");
+        output.push_str("            let response = self.client.request(req).await\n");
+        output.push_str("                .map_err(|e| RpcError::TransportError(format!(\"HTTP request failed: {}\", e)))?;\n\n");
+
+        output.push_str("            // Extract response data\n");
+        output.push_str("            let status_code = response.status().as_u16();\n");
+        output.push_str("            let headers = response.headers()\n");
+        output.push_str("                .iter()\n");
+        output.push_str("                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or(\"\").to_string()))\n");
+        output.push_str("                .collect();\n\n");
+
+        output.push_str(
+            "            let body_bytes = hyper::body::to_bytes(response.into_body()).await\n",
+        );
+        output.push_str("                .map_err(|e| RpcError::TransportError(format!(\"Failed to read response body: {}\", e)))?;\n");
+        output.push_str("            let body = body_bytes.to_vec();\n\n");
+
+        output.push_str("            Ok(HttpResponse {\n");
+        output.push_str("                status_code,\n");
+        output.push_str("                headers,\n");
+        output.push_str("                body,\n");
+        output.push_str("            })\n");
+        output.push_str("        }\n");
+        output.push_str("    }\n");
+
+        output.push_str("}\n");
+
+        output
+    }
 }

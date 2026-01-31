@@ -184,6 +184,12 @@ impl CodeGenerator {
                 content.push('\n');
             }
 
+            // Generate hyper transport adapter if RESTful RPCs are enabled
+            if self.config.enable_restful_rpcs {
+                content.push_str(&ops_gen.generate_hyper_adapter());
+                content.push('\n');
+            }
+
             content.push_str(&ops_gen.generate_operations_module(module)?);
             content.push('\n');
         }
