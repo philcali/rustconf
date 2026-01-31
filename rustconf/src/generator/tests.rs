@@ -118,6 +118,7 @@ fn test_write_files_creates_output_directory() {
 mod config_validation;
 mod crud_operations;
 mod error_mapping_test;
+mod hyper_adapter;
 mod integration;
 mod notifications;
 mod reqwest_adapter;
