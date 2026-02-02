@@ -707,6 +707,82 @@ fn test_http_transport_generated_when_restful_rpcs_enabled() {
 }
 
 #[test]
+fn test_http_transport_custom_example_includes_complete_implementation() {
+    let mut config = GeneratorConfig::default();
+    config.enable_restful_rpcs();
+    let generator = CodeGenerator::new(config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: None,
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![Rpc {
+            name: "test-rpc".to_string(),
+            description: None,
+            input: None,
+            output: None,
+        }],
+        notifications: vec![],
+    };
+
+    let generated = generator.generate(&module).unwrap();
+    let content = &generated.files[0].content;
+
+    // Check that the custom transport example includes struct definition
+    assert!(content.contains("/// struct MyCustomTransport {"));
+    assert!(content.contains("///     client: reqwest::Client,"));
+    assert!(content.contains("///     max_retries: u32,"));
+    assert!(content.contains("///     custom_header_value: String,"));
+
+    // Check that it includes constructor
+    assert!(content.contains("///     pub fn new(custom_header_value: String) -> Self {"));
+    assert!(content.contains("///         Self {"));
+
+    // Check that it includes HttpTransport trait implementation
+    assert!(content.contains("/// impl HttpTransport for MyCustomTransport {"));
+    assert!(content.contains("///     async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, RpcError> {"));
+
+    // Check that it includes retry logic
+    assert!(content.contains("///         // Retry logic"));
+    assert!(content.contains("///         for attempt in 0..=self.max_retries {"));
+    assert!(content.contains("///             if attempt > 0 {"));
+    assert!(content.contains("///                 tokio::time::sleep("));
+
+    // Check that it includes custom header addition
+    assert!(content.contains("///         // Add custom header to all requests"));
+    assert!(content.contains("///         request.headers.push(("));
+    assert!(content.contains("///             \"X-Custom-Header\".to_string(),"));
+
+    // Check that it includes HTTP method conversion
+    assert!(content.contains("///             let method = match request.method {"));
+    assert!(content.contains("///                 HttpMethod::GET => reqwest::Method::GET,"));
+    assert!(content.contains("///                 HttpMethod::POST => reqwest::Method::POST,"));
+
+    // Check that it includes response handling
+    assert!(content.contains("///                     return Ok(HttpResponse {"));
+    assert!(content.contains("///                         status_code,"));
+    assert!(content.contains("///                         headers,"));
+    assert!(content.contains("///                         body,"));
+
+    // Check that it includes error handling
+    assert!(content.contains("///         Err(RpcError::TransportError("));
+    assert!(
+        content.contains("///             format!(\"HTTP request failed after {} retries: {}\",")
+    );
+
+    // Check that it includes usage example
+    assert!(content.contains("/// // Usage example"));
+    assert!(content
+        .contains("///     let transport = MyCustomTransport::new(\"my-app-v1.0\".to_string());"));
+    assert!(content.contains("///     let client = RestconfClient::new("));
+}
+
+#[test]
 fn test_http_transport_not_generated_when_restful_rpcs_disabled() {
     let config = GeneratorConfig::default(); // enable_restful_rpcs is false by default
     let generator = CodeGenerator::new(config);

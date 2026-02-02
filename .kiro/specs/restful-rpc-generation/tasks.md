@@ -303,8 +303,8 @@ This implementation plan breaks down the RESTful RPC generation feature into dis
   - Test error mapper receiving correct response data
   - _Requirements: 7.7_
 
-- [ ] 11. Add custom transport implementation examples
-  - [ ] 11.1 Generate example custom transport in documentation
+- [x] 11. Add custom transport implementation examples
+  - [x] 11.1 Generate example custom transport in documentation
     - Show struct definition
     - Show HttpTransport trait implementation
     - Show usage with RestconfClient
