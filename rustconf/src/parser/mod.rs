@@ -946,6 +946,7 @@ impl ModuleParser {
         let mut typedefs = Vec::new();
         let mut groupings = Vec::new();
         let mut data_nodes = Vec::new();
+        let mut rpcs = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -993,8 +994,11 @@ impl ModuleParser {
                 Token::Uses => {
                     data_nodes.push(DataNode::Uses(self.parse_uses()?));
                 }
-                Token::Rpc | Token::Notification | Token::Action => {
-                    // Skip RPC, notification, and action statements for now
+                Token::Rpc => {
+                    rpcs.push(self.parse_rpc()?);
+                }
+                Token::Notification | Token::Action => {
+                    // Skip notification and action statements for now
                     self.skip_statement()?;
                 }
                 _ => {
@@ -1023,7 +1027,7 @@ impl ModuleParser {
             typedefs,
             groupings,
             data_nodes,
-            rpcs: Vec::new(),
+            rpcs,
             notifications: Vec::new(),
         })
     }
@@ -2058,6 +2062,109 @@ impl ModuleParser {
         }
 
         Ok(Uses { name, description })
+    }
+
+    /// Parse RPC statement: rpc <identifier> { [input { <data-definition-statements> }] [output { <data-definition-statements> }] }
+    fn parse_rpc(&mut self) -> Result<Rpc, ParseError> {
+        self.expect(Token::Rpc)?;
+
+        let name = self.parse_identifier_or_keyword()?;
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut input = None;
+        let mut output = None;
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    description = Some(self.parse_description_statement()?);
+                }
+                Token::Input => {
+                    self.advance();
+                    self.expect(Token::LeftBrace)?;
+
+                    let mut input_nodes = Vec::new();
+
+                    while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+                        match self.peek() {
+                            Token::Container => {
+                                input_nodes.push(DataNode::Container(self.parse_container()?));
+                            }
+                            Token::List => {
+                                input_nodes.push(DataNode::List(self.parse_list()?));
+                            }
+                            Token::Leaf => {
+                                input_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                            }
+                            Token::LeafList => {
+                                input_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                            }
+                            Token::Choice => {
+                                input_nodes.push(DataNode::Choice(self.parse_choice()?));
+                            }
+                            Token::Uses => {
+                                input_nodes.push(DataNode::Uses(self.parse_uses()?));
+                            }
+                            _ => {
+                                self.skip_statement()?;
+                            }
+                        }
+                    }
+
+                    self.expect(Token::RightBrace)?;
+                    input = Some(input_nodes);
+                }
+                Token::Output => {
+                    self.advance();
+                    self.expect(Token::LeftBrace)?;
+
+                    let mut output_nodes = Vec::new();
+
+                    while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+                        match self.peek() {
+                            Token::Container => {
+                                output_nodes.push(DataNode::Container(self.parse_container()?));
+                            }
+                            Token::List => {
+                                output_nodes.push(DataNode::List(self.parse_list()?));
+                            }
+                            Token::Leaf => {
+                                output_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                            }
+                            Token::LeafList => {
+                                output_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                            }
+                            Token::Choice => {
+                                output_nodes.push(DataNode::Choice(self.parse_choice()?));
+                            }
+                            Token::Uses => {
+                                output_nodes.push(DataNode::Uses(self.parse_uses()?));
+                            }
+                            _ => {
+                                self.skip_statement()?;
+                            }
+                        }
+                    }
+
+                    self.expect(Token::RightBrace)?;
+                    output = Some(output_nodes);
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Rpc {
+            name,
+            description,
+            input,
+            output,
+        })
     }
 
     /// Skip an unknown statement (consume until semicolon or closing brace).

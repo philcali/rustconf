@@ -1,0 +1,23 @@
+module device-management {
+    yang-version 1.1;
+    namespace "http://example.com/device-management";
+    prefix "dm";
+
+    description "Example YANG module for device management operations.";
+
+    revision 2024-01-01 {
+        description "Initial revision";
+    }
+
+    rpc get-system-info {
+        description "Get system information";
+        output {
+            leaf hostname {
+                type string;
+            }
+            leaf version {
+                type string;
+            }
+        }
+    }
+}
