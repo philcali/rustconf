@@ -1,11 +1,11 @@
 [package]
-name = "interface-config"
+name = "restful-interceptor-example"
 version.workspace = true
 edition.workspace = true
 publish = false
 
 [features]
-default = []
+default = ["reqwest-client"]
 reqwest-client = ["reqwest"]
 hyper-client = ["hyper", "hyper-tls"]
 
@@ -13,7 +13,7 @@ hyper-client = ["hyper", "hyper-tls"]
 rustconf = { path = "../../rustconf" }
 serde.workspace = true
 serde_json.workspace = true
-regex.workspace = true
+tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1"
 urlencoding = "2.1"
 reqwest = { version = "0.11", features = ["json"], optional = true }

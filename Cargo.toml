@@ -2,6 +2,10 @@
 members = [
     "rustconf",
     "examples/interface-config",
+    "examples/restful-basic",
+    "examples/restful-custom-transport",
+    "examples/restful-interceptor",
+    "examples/restful-error-handling",
 ]
 resolver = "2"
 

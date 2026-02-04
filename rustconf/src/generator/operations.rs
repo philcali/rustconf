@@ -2152,7 +2152,7 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    /// }\n");
         output.push_str("    /// ```\n");
 
-        let mut derives = vec![];
+        let mut derives = vec!["Default"];
         if self.config.derive_debug {
             derives.push("Debug");
         }
@@ -2351,7 +2351,7 @@ impl<'a> OperationsGenerator<'a> {
         output.push_str("    /// }\n");
         output.push_str("    /// ```\n");
 
-        let mut derives = vec![];
+        let mut derives = vec!["Default"];
         if self.config.derive_debug {
             derives.push("Debug");
         }

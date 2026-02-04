@@ -115,7 +115,7 @@ fn test_write_files_creates_output_directory() {
 }
 
 // Submodules for organized tests
-mod cargo_toml_generation;
+mod backward_compatibility;
 mod config_validation;
 mod crud_operations;
 mod error_mapper_test;

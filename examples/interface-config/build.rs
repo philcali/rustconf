@@ -21,6 +21,7 @@ fn main() {
         // Optionally customize the generated module name
         .module_name("interface_config")
         // Generate the Rust bindings
+        .enable_restful_rpcs(true)
         .generate();
 
     // Handle generation errors with proper error reporting

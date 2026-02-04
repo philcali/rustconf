@@ -2546,4 +2546,233 @@ mod tests {
         assert!(loaded.is_some());
         assert_eq!(loaded.unwrap().namespace, "urn:common:v1");
     }
+
+    // ========== RPC Parsing Tests ==========
+
+    #[test]
+    fn test_parse_rpc_with_input_and_output() {
+        let input = r#"
+            module test-rpc {
+                namespace "urn:test:rpc";
+                prefix tr;
+
+                rpc restart-device {
+                    description "Restart the device";
+                    input {
+                        leaf delay-seconds {
+                            type uint32;
+                            default 0;
+                        }
+                    }
+                    output {
+                        leaf success {
+                            type boolean;
+                        }
+                        leaf message {
+                            type string;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok(), "Failed to parse RPC: {:?}", result.err());
+        let module = result.unwrap();
+
+        assert_eq!(module.rpcs.len(), 1);
+        let rpc = &module.rpcs[0];
+        assert_eq!(rpc.name, "restart-device");
+        assert_eq!(rpc.description, Some("Restart the device".to_string()));
+        assert!(rpc.input.is_some());
+        assert!(rpc.output.is_some());
+
+        let input_nodes = rpc.input.as_ref().unwrap();
+        assert_eq!(input_nodes.len(), 1);
+
+        let output_nodes = rpc.output.as_ref().unwrap();
+        assert_eq!(output_nodes.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_rpc_with_output_only() {
+        let input = r#"
+            module test-rpc {
+                namespace "urn:test:rpc";
+                prefix tr;
+
+                rpc get-system-info {
+                    description "Get system information";
+                    output {
+                        leaf hostname {
+                            type string;
+                        }
+                        leaf uptime {
+                            type uint64;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        assert_eq!(module.rpcs.len(), 1);
+        let rpc = &module.rpcs[0];
+        assert_eq!(rpc.name, "get-system-info");
+        assert!(rpc.input.is_none());
+        assert!(rpc.output.is_some());
+
+        let output_nodes = rpc.output.as_ref().unwrap();
+        assert_eq!(output_nodes.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_rpc_with_input_only() {
+        let input = r#"
+            module test-rpc {
+                namespace "urn:test:rpc";
+                prefix tr;
+
+                rpc send-notification {
+                    description "Send a notification";
+                    input {
+                        leaf message {
+                            type string;
+                            mandatory true;
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        assert_eq!(module.rpcs.len(), 1);
+        let rpc = &module.rpcs[0];
+        assert_eq!(rpc.name, "send-notification");
+        assert!(rpc.input.is_some());
+        assert!(rpc.output.is_none());
+    }
+
+    #[test]
+    fn test_parse_rpc_without_input_or_output() {
+        let input = r#"
+            module test-rpc {
+                namespace "urn:test:rpc";
+                prefix tr;
+
+                rpc trigger-action {
+                    description "Trigger an action";
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        assert_eq!(module.rpcs.len(), 1);
+        let rpc = &module.rpcs[0];
+        assert_eq!(rpc.name, "trigger-action");
+        assert!(rpc.input.is_none());
+        assert!(rpc.output.is_none());
+    }
+
+    #[test]
+    fn test_parse_multiple_rpcs() {
+        let input = r#"
+            module test-rpc {
+                namespace "urn:test:rpc";
+                prefix tr;
+
+                rpc operation-one {
+                    description "First operation";
+                    input {
+                        leaf param1 {
+                            type string;
+                        }
+                    }
+                }
+
+                rpc operation-two {
+                    description "Second operation";
+                    output {
+                        leaf result {
+                            type boolean;
+                        }
+                    }
+                }
+
+                rpc operation-three {
+                    description "Third operation";
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        assert_eq!(module.rpcs.len(), 3);
+        assert_eq!(module.rpcs[0].name, "operation-one");
+        assert_eq!(module.rpcs[1].name, "operation-two");
+        assert_eq!(module.rpcs[2].name, "operation-three");
+    }
+
+    #[test]
+    fn test_parse_module_with_data_nodes_and_rpcs() {
+        let input = r#"
+            module mixed {
+                namespace "urn:test:mixed";
+                prefix mx;
+
+                container config {
+                    leaf setting {
+                        type string;
+                    }
+                }
+
+                rpc do-something {
+                    description "Do something";
+                    input {
+                        leaf value {
+                            type uint32;
+                        }
+                    }
+                }
+
+                list items {
+                    key "id";
+                    leaf id {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(result.is_ok());
+        let module = result.unwrap();
+
+        assert_eq!(module.data_nodes.len(), 2);
+        assert_eq!(module.rpcs.len(), 1);
+        assert_eq!(module.rpcs[0].name, "do-something");
+    }
 }
