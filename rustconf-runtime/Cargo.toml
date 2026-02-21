@@ -1,0 +1,26 @@
+[package]
+name = "rustconf-runtime"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rustconf Contributors"]
+description = "Runtime components for rustconf-generated RESTCONF clients"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/your-org/rustconf"
+keywords = ["restconf", "yang", "networking", "codegen"]
+categories = ["network-programming", "api-bindings"]
+
+[dependencies]
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Optional transport dependencies
+reqwest = { version = "0.11", features = ["json"], optional = true }
+hyper = { version = "0.14", features = ["client", "http1", "http2"], optional = true }
+hyper-tls = { version = "0.5", optional = true }
+tokio = { version = "1.0", features = ["rt"], optional = true }
+
+[features]
+default = []
+reqwest = ["dep:reqwest"]
+hyper = ["dep:hyper", "dep:hyper-tls", "dep:tokio"]
