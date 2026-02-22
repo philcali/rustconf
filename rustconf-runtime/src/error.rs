@@ -7,27 +7,78 @@ use std::fmt;
 ///
 /// This enum covers all error conditions that can occur during
 /// RESTCONF operations, from transport failures to validation errors.
+///
+/// # Examples
+///
+/// Handling different error types:
+///
+/// ```
+/// use rustconf_runtime::RpcError;
+///
+/// fn handle_error(error: RpcError) {
+///     match error {
+///         RpcError::TransportError(msg) => {
+///             eprintln!("Network error: {}", msg);
+///         }
+///         RpcError::HttpError { status_code, message } => {
+///             eprintln!("HTTP {} error: {}", status_code, message);
+///         }
+///         RpcError::ValidationError(msg) => {
+///             eprintln!("Validation failed: {}", msg);
+///         }
+///         _ => {
+///             eprintln!("Other error: {}", error);
+///         }
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub enum RpcError {
     /// Error occurred in the HTTP transport layer.
+    ///
+    /// This typically indicates network connectivity issues, DNS resolution
+    /// failures, or other low-level transport problems.
     TransportError(String),
 
     /// Error serializing request data to JSON.
+    ///
+    /// This occurs when request data cannot be converted to JSON format,
+    /// usually indicating a programming error or invalid data structure.
     SerializationError(String),
 
     /// Error deserializing response data from JSON.
+    ///
+    /// This occurs when the server response cannot be parsed as expected,
+    /// which may indicate API version mismatch or malformed responses.
     DeserializationError(String),
 
     /// Validation error (e.g., YANG constraint violation).
+    ///
+    /// This occurs when data fails YANG-defined constraints such as
+    /// range checks, pattern matching, or mandatory field requirements.
     ValidationError(String),
 
     /// HTTP error response from server.
-    HttpError { status_code: u16, message: String },
+    ///
+    /// This represents HTTP-level errors (4xx, 5xx status codes) returned
+    /// by the RESTCONF server, including the status code and error message.
+    HttpError {
+        /// HTTP status code (e.g., 404, 500)
+        status_code: u16,
+        /// Error message from the server
+        message: String,
+    },
 
     /// Configuration error (e.g., invalid base URL).
+    ///
+    /// This occurs when the client is misconfigured, such as providing
+    /// an empty or malformed base URL.
     ConfigurationError(String),
 
     /// Operation not implemented.
+    ///
+    /// This indicates that a requested operation is not supported by
+    /// the current implementation or configuration.
     NotImplemented,
 }
 
