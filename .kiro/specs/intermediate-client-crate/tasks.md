@@ -12,23 +12,23 @@ This implementation plan breaks down the work into two main phases: creating the
   - Create src/ directory structure (lib.rs, transport.rs, error.rs, adapters/)
   - _Requirements: 12.1, 12.2, 12.3, 12.5_
 
-- [ ] 2. Implement core runtime types in rustconf-runtime
-  - [ ] 2.1 Implement HttpMethod, HttpRequest, and HttpResponse types
+- [x] 2. Implement core runtime types in rustconf-runtime
+  - [x] 2.1 Implement HttpMethod, HttpRequest, and HttpResponse types
     - Move existing types from generator to rustconf-runtime
     - Add serde derives and documentation
     - _Requirements: 12.1_
   
-  - [ ] 2.2 Implement HttpTransport trait
+  - [x] 2.2 Implement HttpTransport trait
     - Define async trait with execute method
     - Add documentation and usage examples
     - _Requirements: 12.1, 4.4_
   
-  - [ ] 2.3 Implement RpcError type
+  - [x] 2.3 Implement RpcError type
     - Move existing error type from generator
     - Implement Display and Error traits
     - _Requirements: 12.1, 10.3_
   
-  - [ ] 2.4 Implement RestconfClient
+  - [x] 2.4 Implement RestconfClient
     - Move existing client implementation from generator
     - Support interceptor pattern
     - _Requirements: 12.1, 4.5_
