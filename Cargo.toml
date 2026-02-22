@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "rustconf",
+    "rustconf-runtime",
     "examples/interface-config",
     "examples/restful-basic",
     "examples/restful-custom-transport",
