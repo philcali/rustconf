@@ -174,6 +174,15 @@ This implementation plan breaks down the work into two main phases: creating the
     - Document all public types and traits
     - Explain feature flags
     - _Requirements: 9.4, 12.1, 12.2_
+  
+  - [ ] 11.4 Update existing examples to use rustconf-runtime
+    - Update examples/interface-config to use rustconf-runtime
+    - Update examples/restful-basic to use rustconf-runtime
+    - Update examples/restful-custom-transport to use rustconf-runtime
+    - Update examples/restful-interceptor to use rustconf-runtime
+    - Update examples/restful-error-handling to use rustconf-runtime
+    - Re-add examples to Cargo workspace after updates
+    - _Requirements: 12.4_
 
 - [ ] 12. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

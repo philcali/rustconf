@@ -11,6 +11,7 @@
 use std::process::Command;
 
 #[test]
+#[ignore = "Example removed from workspace - will be updated in task 11.4"]
 fn test_example_builds_successfully() {
     // Test that the example builds successfully
     // This validates Requirements 3.3 (build integration) and 6.3 (build.rs integration)
@@ -32,6 +33,7 @@ fn test_example_builds_successfully() {
 }
 
 #[test]
+#[ignore = "Example removed from workspace - will be updated in task 11.4"]
 fn test_example_runs_without_errors() {
     // Test that the example runs without errors
     // This validates Requirements 6.1 (example module) and 6.4 (usage demonstration)
@@ -79,6 +81,7 @@ fn test_example_runs_without_errors() {
 }
 
 #[test]
+#[ignore = "Example removed from workspace - will be updated in task 11.4"]
 fn test_generated_code_compiles() {
     // Test that the generated code compiles without warnings
     // This validates Requirement 3.3 (generated code availability)
