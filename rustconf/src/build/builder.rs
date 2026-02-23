@@ -74,6 +74,16 @@ impl RustconfBuilder {
         self
     }
 
+    /// Enable or disable modular output generation.
+    ///
+    /// When enabled, generates separate files for types, operations, and validation.
+    /// When disabled (default), generates a single file with all code.
+    /// Recommended for intermediate crate pattern.
+    pub fn modular_output(mut self, enable: bool) -> Self {
+        self.config.modular_output = enable;
+        self
+    }
+
     /// Generate Rust bindings from configured YANG files.
     pub fn generate(self) -> Result<(), BuildError> {
         // Validate configuration

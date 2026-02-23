@@ -123,6 +123,7 @@ mod error_mapping_test;
 mod feature_compilation;
 mod hyper_adapter;
 mod integration;
+mod modular_generation;
 mod notifications;
 mod reqwest_adapter;
 mod restconf_client;

@@ -443,6 +443,7 @@ fn test_generated_notification_code_compiles() {
         enable_namespace_prefixes: false,
         enable_restful_rpcs: false,
         restful_namespace_mode: NamespaceMode::default(),
+        modular_output: false,
     };
 
     let generator = CodeGenerator::new(config);
