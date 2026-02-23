@@ -38,13 +38,13 @@ This implementation plan breaks down the work into two main phases: creating the
     - Test error type conversions
     - _Requirements: 12.1_
 
-- [ ] 3. Implement transport adapters in rustconf-runtime
-  - [ ] 3.1 Implement reqwest adapter with feature gate
+- [x] 3. Implement transport adapters in rustconf-runtime
+  - [x] 3.1 Implement reqwest adapter with feature gate
     - Move existing reqwest adapter from generator
     - Feature-gate with #[cfg(feature = "reqwest")]
     - _Requirements: 12.2, 4.1_
   
-  - [ ] 3.2 Implement hyper adapter with feature gate
+  - [x] 3.2 Implement hyper adapter with feature gate
     - Move existing hyper adapter from generator
     - Feature-gate with #[cfg(feature = "hyper")]
     - _Requirements: 12.2, 4.2_
@@ -54,8 +54,8 @@ This implementation plan breaks down the work into two main phases: creating the
     - Test hyper adapter with mock server
     - _Requirements: 12.2_
 
-- [ ] 4. Add modular_output support to RustconfBuilder
-  - [ ] 4.1 Add modular_output field to GeneratorConfig
+- [x] 4. Add modular_output support to RustconfBuilder
+  - [x] 4.1 Add modular_output field to GeneratorConfig
     - Add boolean field with default false
     - Add builder method modular_output()
     - _Requirements: 3.3, 7.1_
@@ -69,29 +69,29 @@ This implementation plan breaks down the work into two main phases: creating the
     - Test output_dir() with src/ paths
     - _Requirements: 3.3, 7.1_
 
-- [ ] 5. Implement modular code generation in CodeGenerator
-  - [ ] 5.1 Implement generate_modular() method
+- [x] 5. Implement modular code generation in CodeGenerator
+  - [x] 5.1 Implement generate_modular() method
     - Add logic to generate multiple files instead of single file
     - Call individual file generators (mod, types, operations, validation)
     - _Requirements: 2.1, 7.3_
   
-  - [ ] 5.2 Implement generate_mod_file() method
+  - [x] 5.2 Implement generate_mod_file() method
     - Generate mod.rs with submodule declarations
     - Add re-exports for rustconf-runtime types
     - _Requirements: 7.3, 12.4_
   
-  - [ ] 5.3 Implement generate_types_file() method
+  - [x] 5.3 Implement generate_types_file() method
     - Generate types.rs with only YANG-derived types
     - Remove HTTP abstraction generation
     - Add imports from rustconf-runtime
     - _Requirements: 2.3, 12.4_
   
-  - [ ] 5.4 Implement generate_operations_file() method
+  - [x] 5.4 Implement generate_operations_file() method
     - Generate operations.rs with RPC functions
     - Use rustconf-runtime types instead of generating them
     - _Requirements: 2.4, 12.4_
   
-  - [ ] 5.5 Implement generate_validation_file() method
+  - [x] 5.5 Implement generate_validation_file() method
     - Generate validation.rs with validation types and logic
     - _Requirements: 2.5, 10.1_
   

@@ -52,6 +52,15 @@ fn test_builder_module_name() {
 }
 
 #[test]
+fn test_builder_modular_output() {
+    let builder = RustconfBuilder::new().modular_output(true);
+    assert!(builder.config.modular_output);
+
+    let builder = RustconfBuilder::new().modular_output(false);
+    assert!(!builder.config.modular_output);
+}
+
+#[test]
 fn test_generate_no_yang_files() {
     let temp_dir = TempDir::new().unwrap();
     let builder = RustconfBuilder::new().output_dir(temp_dir.path());

@@ -48,6 +48,11 @@ pub struct GeneratorConfig {
     /// Namespace mode for RESTful RPC URL generation.
     /// Controls whether YANG module namespaces are included in generated URLs.
     pub restful_namespace_mode: NamespaceMode,
+
+    /// Generate modular output (multiple files) vs single file.
+    /// When enabled, generates separate files for types, operations, and validation.
+    /// When disabled (default), generates a single file with all code.
+    pub modular_output: bool,
 }
 
 impl Default for GeneratorConfig {
@@ -62,6 +67,7 @@ impl Default for GeneratorConfig {
             enable_namespace_prefixes: false,
             enable_restful_rpcs: false,
             restful_namespace_mode: NamespaceMode::default(),
+            modular_output: false,
         }
     }
 }
