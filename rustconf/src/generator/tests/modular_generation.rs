@@ -8,7 +8,7 @@ fn test_modular_generation_creates_multiple_files() {
     let config = GeneratorConfig {
         modular_output: true,
         enable_validation: true,
-        enable_restful_rpcs:  true,
+        enable_restful_rpcs: true,
         ..Default::default()
     };
 
@@ -182,8 +182,8 @@ fn test_single_file_generation_still_works() {
     let config = GeneratorConfig {
         modular_output: false,
         enable_validation: true,
-         enable_restful_rpcs: true,
-         ..Default::default()
+        enable_restful_rpcs: true,
+        ..Default::default()
     };
 
     let generator = CodeGenerator::new(config);
