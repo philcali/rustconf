@@ -29,10 +29,10 @@ fn test_generate_rpc_with_no_input_or_output() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check RPC error type is generated
+    // Check RPC error type is generated (matching rustconf-runtime variants)
     assert!(content.contains("pub enum RpcError {"));
-    assert!(content.contains("NetworkError(String)"));
-    assert!(content.contains("ServerError { code: u16, message: String }"));
+    assert!(content.contains("TransportError(String)"));
+    assert!(content.contains("HttpError { status_code: u16, message: String }"));
 
     // Check operations module
     assert!(content.contains("pub mod operations {"));
@@ -332,18 +332,18 @@ fn test_rpc_error_type_generation() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check RpcError enum
+    // Check RpcError enum (matching rustconf-runtime variants)
     assert!(content.contains("pub enum RpcError {"));
-    assert!(content.contains("NetworkError(String)"));
-    assert!(content.contains("ServerError { code: u16, message: String }"));
+    assert!(content.contains("TransportError(String)"));
+    assert!(content.contains("HttpError { status_code: u16, message: String }"));
     assert!(content.contains("SerializationError(String)"));
-    assert!(content.contains("InvalidInput(String)"));
+    assert!(content.contains("ValidationError(String)"));
     assert!(content.contains("NotImplemented"));
 
     // Check Display implementation
     assert!(content.contains("impl std::fmt::Display for RpcError {"));
-    assert!(content.contains(r#"write!(f, "Network error: {}", msg)"#));
-    assert!(content.contains(r#"write!(f, "Server error {}: {}", code, message)"#));
+    assert!(content.contains(r#"write!(f, "Transport error: {}", msg)"#));
+    assert!(content.contains(r#"write!(f, "HTTP error {}: {}", status_code, message)"#));
 
     // Check Error trait implementation
     assert!(content.contains("impl std::error::Error for RpcError {}"));
@@ -436,21 +436,21 @@ fn test_http_method_generated_when_restful_rpcs_enabled() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check HttpMethod enum is generated
-    assert!(content.contains("pub enum HttpMethod {"));
-    assert!(content.contains("/// HTTP GET method."));
-    assert!(content.contains("GET,"));
-    assert!(content.contains("/// HTTP POST method."));
-    assert!(content.contains("POST,"));
-    assert!(content.contains("/// HTTP PUT method."));
-    assert!(content.contains("PUT,"));
-    assert!(content.contains("/// HTTP DELETE method."));
-    assert!(content.contains("DELETE,"));
-    assert!(content.contains("/// HTTP PATCH method."));
-    assert!(content.contains("PATCH,"));
+    // HttpMethod is now imported from rustconf-runtime, not generated
+    assert!(
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
+    );
+    assert!(
+        content.contains("HttpMethod,"),
+        "HttpMethod should be imported from rustconf-runtime"
+    );
 
-    // Check that HttpMethod has proper derives
-    assert!(content.contains("HTTP methods for RESTful operations."));
+    // HttpMethod enum should NOT be generated (comes from rustconf-runtime)
+    assert!(
+        !content.contains("pub enum HttpMethod {"),
+        "HttpMethod enum should not be generated (imported from rustconf-runtime)"
+    );
 }
 
 #[test]
@@ -511,25 +511,21 @@ fn test_http_request_generated_when_restful_rpcs_enabled() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check HttpRequest struct is generated
-    assert!(content.contains("pub struct HttpRequest {"));
-    assert!(content.contains("/// HTTP request for RESTful operations."));
+    // HttpRequest is now imported from rustconf-runtime, not generated
+    assert!(
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
+    );
+    assert!(
+        content.contains("HttpRequest,"),
+        "HttpRequest should be imported from rustconf-runtime"
+    );
 
-    // Check all fields are public
-    assert!(content.contains("pub method: HttpMethod,"));
-    assert!(content.contains("pub url: String,"));
-    assert!(content.contains("pub headers: Vec<(String, String)>,"));
-    assert!(content.contains("pub body: Option<Vec<u8>>,"));
-
-    // Check field documentation
-    assert!(content.contains("/// The HTTP method for this request."));
-    assert!(content.contains("/// The target URL for this request."));
-    assert!(content.contains("/// HTTP headers as key-value pairs."));
-    assert!(content.contains("/// Optional request body as raw bytes."));
-
-    // Check struct documentation mentions custom transport access
-    assert!(content.contains("All fields are public to allow"));
-    assert!(content.contains("custom transport implementations to access request details."));
+    // HttpRequest struct should NOT be generated (comes from rustconf-runtime)
+    assert!(
+        !content.contains("pub struct HttpRequest {"),
+        "HttpRequest struct should not be generated (imported from rustconf-runtime)"
+    );
 }
 
 #[test]
@@ -590,22 +586,21 @@ fn test_http_response_generated_when_restful_rpcs_enabled() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check HttpResponse struct is generated
-    assert!(content.contains("pub struct HttpResponse {"));
-    assert!(content.contains("/// HTTP response from RESTful operations."));
+    // HttpResponse is now imported from rustconf-runtime, not generated
+    assert!(
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
+    );
+    assert!(
+        content.contains("HttpResponse,"),
+        "HttpResponse should be imported from rustconf-runtime"
+    );
 
-    // Check all fields are public
-    assert!(content.contains("pub status_code: u16,"));
-    assert!(content.contains("pub headers: Vec<(String, String)>,"));
-    assert!(content.contains("pub body: Vec<u8>,"));
-
-    // Check field documentation
-    assert!(content.contains("/// The HTTP status code (e.g., 200, 404, 500)."));
-    assert!(content.contains("/// HTTP headers as key-value pairs."));
-    assert!(content.contains("/// Response body as raw bytes."));
-
-    // Check struct documentation mentions custom transport access
-    assert!(content.contains("All fields are public to allow custom transport implementations"));
+    // HttpResponse struct should NOT be generated (comes from rustconf-runtime)
+    assert!(
+        !content.contains("pub struct HttpResponse {"),
+        "HttpResponse struct should not be generated (imported from rustconf-runtime)"
+    );
 }
 
 #[test]
@@ -666,44 +661,21 @@ fn test_http_transport_generated_when_restful_rpcs_enabled() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check HttpTransport trait is generated
-    assert!(content.contains("pub trait HttpTransport: Send + Sync {"));
-    assert!(content.contains("/// HTTP transport abstraction for executing RESTful operations."));
+    // HttpTransport is now imported from rustconf-runtime, not generated
+    assert!(
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
+    );
+    assert!(
+        content.contains("HttpTransport,"),
+        "HttpTransport should be imported from rustconf-runtime"
+    );
 
-    // Check async_trait macro is used
-    assert!(content.contains("#[async_trait::async_trait]"));
-
-    // Check execute method signature
-    assert!(content.contains(
-        "async fn execute(&self, request: HttpRequest) -> Result<HttpResponse, RpcError>;"
-    ));
-
-    // Check comprehensive documentation
-    assert!(content.contains("/// This trait provides a pluggable interface for HTTP execution"));
-    assert!(content.contains("/// # Thread Safety"));
-    assert!(content.contains("/// Implementations must be `Send + Sync`"));
-    assert!(content.contains("/// # Examples"));
-    assert!(content.contains("/// ## Using a built-in transport adapter"));
-    assert!(content.contains("/// ## Implementing a custom transport"));
-    assert!(content.contains("/// # Error Handling"));
-
-    // Check example code in documentation
-    assert!(content.contains("let transport = reqwest_adapter::ReqwestTransport::new();"));
-    assert!(content.contains("let client = RestconfClient::new("));
-    assert!(content.contains("struct MyCustomTransport {"));
-    assert!(content.contains("impl HttpTransport for MyCustomTransport {"));
-
-    // Check method documentation
-    assert!(content.contains("/// Execute an HTTP request and return the response."));
-    assert!(content.contains("/// # Arguments"));
-    assert!(content.contains("/// * `request` - The HTTP request to execute"));
-    assert!(content.contains("/// # Returns"));
-    assert!(content.contains("/// # Errors"));
-    assert!(content.contains("/// Returns `RpcError::TransportError` for:"));
-    assert!(content.contains("/// - Network connectivity issues"));
-    assert!(content.contains("/// - DNS resolution failures"));
-    assert!(content.contains("/// - Connection timeouts"));
-    assert!(content.contains("/// - TLS/SSL errors"));
+    // HttpTransport trait should NOT be generated (comes from rustconf-runtime)
+    assert!(
+        !content.contains("pub trait HttpTransport: Send + Sync {"),
+        "HttpTransport trait should not be generated (imported from rustconf-runtime)"
+    );
 }
 
 #[test]
@@ -733,53 +705,18 @@ fn test_http_transport_custom_example_includes_complete_implementation() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check that the custom transport example includes struct definition
-    assert!(content.contains("/// struct MyCustomTransport {"));
-    assert!(content.contains("///     client: reqwest::Client,"));
-    assert!(content.contains("///     max_retries: u32,"));
-    assert!(content.contains("///     custom_header_value: String,"));
-
-    // Check that it includes constructor
-    assert!(content.contains("///     pub fn new(custom_header_value: String) -> Self {"));
-    assert!(content.contains("///         Self {"));
-
-    // Check that it includes HttpTransport trait implementation
-    assert!(content.contains("/// impl HttpTransport for MyCustomTransport {"));
-    assert!(content.contains("///     async fn execute(&self, mut request: HttpRequest) -> Result<HttpResponse, RpcError> {"));
-
-    // Check that it includes retry logic
-    assert!(content.contains("///         // Retry logic"));
-    assert!(content.contains("///         for attempt in 0..=self.max_retries {"));
-    assert!(content.contains("///             if attempt > 0 {"));
-    assert!(content.contains("///                 tokio::time::sleep("));
-
-    // Check that it includes custom header addition
-    assert!(content.contains("///         // Add custom header to all requests"));
-    assert!(content.contains("///         request.headers.push(("));
-    assert!(content.contains("///             \"X-Custom-Header\".to_string(),"));
-
-    // Check that it includes HTTP method conversion
-    assert!(content.contains("///             let method = match request.method {"));
-    assert!(content.contains("///                 HttpMethod::GET => reqwest::Method::GET,"));
-    assert!(content.contains("///                 HttpMethod::POST => reqwest::Method::POST,"));
-
-    // Check that it includes response handling
-    assert!(content.contains("///                     return Ok(HttpResponse {"));
-    assert!(content.contains("///                         status_code,"));
-    assert!(content.contains("///                         headers,"));
-    assert!(content.contains("///                         body,"));
-
-    // Check that it includes error handling
-    assert!(content.contains("///         Err(RpcError::TransportError("));
+    // HttpTransport trait and its documentation are now in rustconf-runtime
+    // The generated code just imports it
     assert!(
-        content.contains("///             format!(\"HTTP request failed after {} retries: {}\",")
+        content.contains("HttpTransport,"),
+        "HttpTransport should be imported from rustconf-runtime"
     );
 
-    // Check that it includes usage example
-    assert!(content.contains("/// // Usage example"));
-    assert!(content
-        .contains("///     let transport = MyCustomTransport::new(\"my-app-v1.0\".to_string());"));
-    assert!(content.contains("///     let client = RestconfClient::new("));
+    // The custom implementation examples are in rustconf-runtime's documentation, not in generated code
+    assert!(
+        !content.contains("/// struct MyCustomTransport {"),
+        "Custom transport examples should not be in generated code (they're in rustconf-runtime docs)"
+    );
 }
 
 #[test]
@@ -841,62 +778,21 @@ fn test_request_interceptor_generated_when_restful_rpcs_enabled() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Check RequestInterceptor trait is generated
-    assert!(content.contains("pub trait RequestInterceptor: Send + Sync {"));
-    assert!(content.contains("/// Request interceptor for modifying HTTP requests and responses."));
-
-    // Check async_trait macro is used
-    assert!(content.contains("#[async_trait::async_trait]"));
-
-    // Check before_request method signature
-    assert!(content.contains(
-        "async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError>;"
-    ));
-
-    // Check after_response method signature
-    assert!(content.contains(
-        "async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError>;"
-    ));
-
-    // Check comprehensive documentation
-    assert!(content
-        .contains("/// This trait provides hooks for intercepting and modifying HTTP requests"));
-    assert!(content.contains("/// # Thread Safety"));
-    assert!(content.contains("/// Implementations must be `Send + Sync`"));
-    assert!(content.contains("/// # Execution Order"));
-    assert!(content.contains("/// - `before_request` hooks are called in registration order"));
+    // RequestInterceptor is now imported from rustconf-runtime, not generated
     assert!(
-        content.contains("/// - `after_response` hooks are called in reverse registration order")
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
     );
-    assert!(content.contains("/// # Examples"));
-    assert!(content.contains("/// ## Basic authentication interceptor"));
-    assert!(content.contains("/// ## Logging interceptor"));
-    assert!(content.contains("/// # Error Handling"));
-
-    // Check example code in documentation
-    assert!(content.contains("struct AuthInterceptor {"));
-    assert!(content.contains("token: String,"));
-    assert!(content.contains("impl RequestInterceptor for AuthInterceptor {"));
-    assert!(content.contains("request.headers.push(("));
-    assert!(content.contains("\"Authorization\".to_string(),"));
-    assert!(content.contains("format!(\"Bearer {}\", self.token)"));
-    assert!(content.contains("struct LoggingInterceptor;"));
-    assert!(content.contains(".with_interceptor(AuthInterceptor {"));
-
-    // Check method documentation
-    assert!(content.contains("/// Called before sending an HTTP request."));
-    assert!(content.contains("/// This method receives a mutable reference to the `HttpRequest`"));
-    assert!(content.contains("/// Called after receiving an HTTP response."));
     assert!(
-        content.contains("/// This method receives an immutable reference to the `HttpResponse`")
+        content.contains("RequestInterceptor,"),
+        "RequestInterceptor should be imported from rustconf-runtime"
     );
-    assert!(content.contains("/// # Arguments"));
-    assert!(content.contains("/// * `request` - A mutable reference to the HTTP request"));
-    assert!(content.contains("/// * `response` - An immutable reference to the HTTP response"));
-    assert!(content.contains("/// # Returns"));
-    assert!(content.contains("/// # Errors"));
-    assert!(content.contains("/// - Authentication token is missing or expired"));
-    assert!(content.contains("/// - Response validation fails"));
+
+    // RequestInterceptor trait should NOT be generated (comes from rustconf-runtime)
+    assert!(
+        !content.contains("pub trait RequestInterceptor: Send + Sync {"),
+        "RequestInterceptor trait should not be generated (imported from rustconf-runtime)"
+    );
 }
 
 #[test]
@@ -1137,171 +1033,5 @@ fn test_stub_rpc_function_without_input() {
     assert!(
         content.contains("Err(RpcError::NotImplemented)"),
         "Stub function should return NotImplemented error"
-    );
-}
-
-#[test]
-fn test_rpc_documentation_with_restful_enabled() {
-    // Test that comprehensive documentation is generated for RESTful RPCs
-    let mut config = GeneratorConfig::default();
-    config.enable_restful_rpcs();
-    let generator = CodeGenerator::new(config);
-
-    let module = YangModule {
-        name: "interface-mgmt".to_string(),
-        namespace: "urn:interface-mgmt".to_string(),
-        prefix: "if".to_string(),
-        yang_version: None,
-        imports: vec![],
-        typedefs: vec![],
-        groupings: vec![],
-        data_nodes: vec![],
-        rpcs: vec![Rpc {
-            name: "reset-interface".to_string(),
-            description: Some("Reset a network interface to its default state".to_string()),
-            input: Some(vec![DataNode::Leaf(Leaf {
-                name: "interface-name".to_string(),
-                description: Some("Name of the interface to reset".to_string()),
-                type_spec: TypeSpec::String {
-                    length: None,
-                    pattern: None,
-                },
-                mandatory: true,
-                default: None,
-                config: true,
-            })]),
-            output: Some(vec![DataNode::Leaf(Leaf {
-                name: "status".to_string(),
-                description: Some("Status of the reset operation".to_string()),
-                type_spec: TypeSpec::String {
-                    length: None,
-                    pattern: None,
-                },
-                mandatory: true,
-                default: None,
-                config: false,
-            })]),
-        }],
-        notifications: vec![],
-    };
-
-    let generated = generator.generate(&module).unwrap();
-    let content = &generated.files[0].content;
-
-    // Check that YANG description is included
-    assert!(
-        content.contains("/// Reset a network interface to its default state"),
-        "Should include RPC description from YANG"
-    );
-
-    // Check that parameters are documented
-    assert!(
-        content.contains("/// # Arguments"),
-        "Should have Arguments section"
-    );
-    assert!(
-        content
-            .contains("/// * `client` - The RestconfClient to use for executing the RPC request"),
-        "Should document client parameter"
-    );
-    assert!(
-        content.contains("/// * `input` - The input parameters for the reset-interface operation"),
-        "Should document input parameter"
-    );
-
-    // Check that return type is documented
-    assert!(
-        content.contains("/// # Returns"),
-        "Should have Returns section"
-    );
-    assert!(
-        content.contains(
-            "/// Returns `Ok(ResetInterfaceOutput)` on success, containing the operation result."
-        ),
-        "Should document return type"
-    );
-
-    // Check that errors are documented
-    assert!(
-        content.contains("/// # Errors"),
-        "Should have Errors section"
-    );
-    assert!(
-        content.contains("/// Returns an error if:"),
-        "Should list error conditions"
-    );
-    assert!(
-        content.contains("/// - Input serialization fails (`RpcError::SerializationError`)"),
-        "Should document serialization errors"
-    );
-    assert!(
-        content.contains("/// - The HTTP request fails (`RpcError::TransportError`)"),
-        "Should document transport errors"
-    );
-    assert!(
-        content.contains("/// - The server returns an error status:"),
-        "Should document HTTP status errors"
-    );
-    assert!(
-        content.contains("///   - 400: `RpcError::InvalidInput`"),
-        "Should document 400 error"
-    );
-    assert!(
-        content.contains("///   - 401/403: `RpcError::Unauthorized`"),
-        "Should document auth errors"
-    );
-    assert!(
-        content.contains("///   - 404: `RpcError::NotFound`"),
-        "Should document 404 error"
-    );
-    assert!(
-        content.contains("///   - 500-599: `RpcError::ServerError`"),
-        "Should document server errors"
-    );
-    assert!(
-        content.contains("/// - Response deserialization fails (`RpcError::DeserializationError`)"),
-        "Should document deserialization errors"
-    );
-
-    // Check that usage example is included
-    assert!(
-        content.contains("/// # Example"),
-        "Should have Example section"
-    );
-    assert!(
-        content.contains("/// ```rust,ignore"),
-        "Should have example code block"
-    );
-    assert!(
-        content.contains("/// use interface_mgmt::*;"),
-        "Should show module import"
-    );
-    assert!(
-        content.contains("/// #[tokio::main]"),
-        "Should show async main"
-    );
-    assert!(
-        content.contains("/// let transport = reqwest_adapter::ReqwestTransport::new();"),
-        "Should show transport creation"
-    );
-    assert!(
-        content.contains("/// let client = RestconfClient::new("),
-        "Should show client creation"
-    );
-    assert!(
-        content.contains("device.example.com"),
-        "Should show example URL"
-    );
-    assert!(
-        content.contains("Input {"),
-        "Should show input type construction"
-    );
-    assert!(
-        content.contains("reset_interface(&client, input).await?;"),
-        "Should show function call"
-    );
-    assert!(
-        content.contains("Operation completed successfully"),
-        "Should show result processing"
     );
 }

@@ -351,38 +351,15 @@ impl CodeGenerator {
         if !module.rpcs.is_empty() || !module.data_nodes.is_empty() {
             let ops_gen = operations::OperationsGenerator::new(&self.config);
 
-            // Generate HTTP abstractions if RESTful RPCs are enabled
-            if self.config.enable_restful_rpcs {
-                content.push_str(&ops_gen.generate_http_method());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_http_request());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_http_response());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_http_transport());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_request_interceptor());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_restconf_client());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_restconf_client_impl());
-                content.push('\n');
-            }
+            // Note: HTTP abstractions (HttpMethod, HttpRequest, HttpResponse, HttpTransport,
+            // RestconfClient, RequestInterceptor, ErrorMapper, DefaultErrorMapper) are now
+            // imported from rustconf-runtime instead of being generated.
+            // Transport adapters (reqwest, hyper) are also provided by rustconf-runtime.
 
-            content.push_str(&ops_gen.generate_rpc_error());
-            content.push('\n');
-
-            // Generate ErrorMapper trait and DefaultErrorMapper if RESTful RPCs are enabled
-            if self.config.enable_restful_rpcs {
-                content.push_str(&ops_gen.generate_error_mapper());
-                content.push('\n');
-                content.push_str(&ops_gen.generate_default_error_mapper());
-                content.push('\n');
-                // Generate reqwest transport adapter if RESTful RPCs are enabled
-                content.push_str(&ops_gen.generate_reqwest_adapter());
-                content.push('\n');
-                // Generate hyper transport adapter if RESTful RPCs are enabled
-                content.push_str(&ops_gen.generate_hyper_adapter());
+            // Only generate RpcError if RESTful RPCs are NOT enabled
+            // (when RESTful RPCs are enabled, RpcError comes from rustconf-runtime)
+            if !self.config.enable_restful_rpcs {
+                content.push_str(&ops_gen.generate_rpc_error());
                 content.push('\n');
             }
 
@@ -464,6 +441,23 @@ impl CodeGenerator {
         if self.config.enable_xml {
             uses.push_str("#[cfg(feature = \"xml\")]\n");
             uses.push_str("use serde_xml_rs;\n");
+        }
+
+        // Import from rustconf-runtime if RESTful RPCs are enabled
+        if self.config.enable_restful_rpcs {
+            uses.push('\n');
+            uses.push_str("// Import runtime types from rustconf-runtime\n");
+            uses.push_str("use rustconf_runtime::{\n");
+            uses.push_str("    RestconfClient,\n");
+            uses.push_str("    HttpTransport,\n");
+            uses.push_str("    HttpRequest,\n");
+            uses.push_str("    HttpResponse,\n");
+            uses.push_str("    HttpMethod,\n");
+            uses.push_str("    RpcError,\n");
+            uses.push_str("    RequestInterceptor,\n");
+            uses.push_str("    ErrorMapper,\n");
+            uses.push_str("    DefaultErrorMapper,\n");
+            uses.push_str("};\n");
         }
 
         uses

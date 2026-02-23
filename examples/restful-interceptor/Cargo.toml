@@ -10,7 +10,7 @@ reqwest-client = ["reqwest"]
 hyper-client = ["hyper", "hyper-tls"]
 
 [dependencies]
-rustconf = { path = "../../rustconf" }
+rustconf-runtime = { path = "../../rustconf-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { version = "1.0", features = ["full"] }

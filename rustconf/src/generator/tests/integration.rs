@@ -408,11 +408,11 @@ fn test_generated_rpc_code_compiles() {
     assert!(content.contains("pub async fn reset_interface"));
     assert!(content.contains("pub async fn get_statistics"));
 
-    // Verify RPC error variants
-    assert!(content.contains("NetworkError(String)"));
-    assert!(content.contains("ServerError { code: u16, message: String }"));
+    // Verify RPC error variants (matching rustconf-runtime)
+    assert!(content.contains("TransportError(String)"));
+    assert!(content.contains("HttpError { status_code: u16, message: String }"));
     assert!(content.contains("SerializationError(String)"));
-    assert!(content.contains("InvalidInput(String)"));
+    assert!(content.contains("ValidationError(String)"));
     assert!(content.contains("NotImplemented"));
 
     // Verify function signatures

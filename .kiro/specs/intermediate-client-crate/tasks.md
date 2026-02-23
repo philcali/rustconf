@@ -103,8 +103,8 @@ This implementation plan breaks down the work into two main phases: creating the
     - **Property 11: Modular File Organization**
     - **Validates: Requirements 2.1, 7.3**
 
-- [ ] 6. Remove HTTP abstraction generation from single-file mode
-  - [ ] 6.1 Modify generate_single_file() to import from rustconf-runtime
+- [x] 6. Remove HTTP abstraction generation from single-file mode
+  - [x] 6.1 Modify generate_single_file() to import from rustconf-runtime
     - Add rustconf-runtime imports at top of generated file
     - Remove generation of HttpTransport, RestconfClient, RpcError
     - Remove generation of transport adapters
@@ -117,8 +117,8 @@ This implementation plan breaks down the work into two main phases: creating the
 - [ ] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Update operations generator to use rustconf-runtime types
-  - [ ] 8.1 Modify OperationsGenerator to not generate HTTP abstractions
+- [x] 8. Update operations generator to use rustconf-runtime types
+  - [x] 8.1 Modify OperationsGenerator to not generate HTTP abstractions
     - Remove generate_http_method(), generate_http_request(), etc.
     - Update generate_operations_module() to use rustconf-runtime imports
     - _Requirements: 12.4_
