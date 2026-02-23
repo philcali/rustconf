@@ -103,8 +103,8 @@ This implementation plan breaks down the work into two main phases: creating the
     - **Property 11: Modular File Organization**
     - **Validates: Requirements 2.1, 7.3**
 
-- [ ] 6. Remove HTTP abstraction generation from single-file mode
-  - [ ] 6.1 Modify generate_single_file() to import from rustconf-runtime
+- [x] 6. Remove HTTP abstraction generation from single-file mode
+  - [x] 6.1 Modify generate_single_file() to import from rustconf-runtime
     - Add rustconf-runtime imports at top of generated file
     - Remove generation of HttpTransport, RestconfClient, RpcError
     - Remove generation of transport adapters
@@ -117,8 +117,8 @@ This implementation plan breaks down the work into two main phases: creating the
 - [ ] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Update operations generator to use rustconf-runtime types
-  - [ ] 8.1 Modify OperationsGenerator to not generate HTTP abstractions
+- [x] 8. Update operations generator to use rustconf-runtime types
+  - [x] 8.1 Modify OperationsGenerator to not generate HTTP abstractions
     - Remove generate_http_method(), generate_http_request(), etc.
     - Update generate_operations_module() to use rustconf-runtime imports
     - _Requirements: 12.4_
@@ -174,6 +174,15 @@ This implementation plan breaks down the work into two main phases: creating the
     - Document all public types and traits
     - Explain feature flags
     - _Requirements: 9.4, 12.1, 12.2_
+  
+  - [ ] 11.4 Update existing examples to use rustconf-runtime
+    - Update examples/interface-config to use rustconf-runtime
+    - Update examples/restful-basic to use rustconf-runtime
+    - Update examples/restful-custom-transport to use rustconf-runtime
+    - Update examples/restful-interceptor to use rustconf-runtime
+    - Update examples/restful-error-handling to use rustconf-runtime
+    - Re-add examples to Cargo workspace after updates
+    - _Requirements: 12.4_
 
 - [ ] 12. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

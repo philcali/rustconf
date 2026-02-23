@@ -9,20 +9,15 @@ fn test_rpc_error_contains_all_variants() {
 
     let error_code = ops_gen.generate_rpc_error();
 
-    // Check that all required variants are present
+    // Check that all required variants are present (matching rustconf-runtime)
     assert!(error_code.contains("pub enum RpcError"));
-    assert!(error_code.contains("NetworkError(String)"));
-    assert!(error_code.contains("ServerError { code: u16, message: String }"));
-    assert!(error_code.contains("SerializationError(String)"));
-    assert!(error_code.contains("InvalidInput(String)"));
-    assert!(error_code.contains("NotImplemented"));
-
-    // Check new variants for RESTful RPCs
     assert!(error_code.contains("TransportError(String)"));
+    assert!(error_code.contains("SerializationError(String)"));
     assert!(error_code.contains("DeserializationError(String)"));
-    assert!(error_code.contains("Unauthorized(String)"));
-    assert!(error_code.contains("NotFound(String)"));
-    assert!(error_code.contains("UnknownError(String)"));
+    assert!(error_code.contains("ValidationError(String)"));
+    assert!(error_code.contains("HttpError { status_code: u16, message: String }"));
+    assert!(error_code.contains("ConfigurationError(String)"));
+    assert!(error_code.contains("NotImplemented"));
 }
 
 #[test]
@@ -32,22 +27,24 @@ fn test_rpc_error_display_implementation() {
 
     let error_code = ops_gen.generate_rpc_error();
 
-    // Check Display trait implementation
+    // Check Display trait implementation (matching rustconf-runtime)
     assert!(error_code.contains("impl std::fmt::Display for RpcError"));
-    assert!(
-        error_code.contains("RpcError::NetworkError(msg) => write!(f, \"Network error: {}\", msg)")
-    );
     assert!(error_code
         .contains("RpcError::TransportError(msg) => write!(f, \"Transport error: {}\", msg)"));
     assert!(error_code.contains(
+        "RpcError::SerializationError(msg) => write!(f, \"Serialization error: {}\", msg)"
+    ));
+    assert!(error_code.contains(
         "RpcError::DeserializationError(msg) => write!(f, \"Deserialization error: {}\", msg)"
     ));
+    assert!(error_code
+        .contains("RpcError::ValidationError(msg) => write!(f, \"Validation error: {}\", msg)"));
+    assert!(error_code.contains("RpcError::HttpError { status_code, message } => write!(f, \"HTTP error {}: {}\", status_code, message)"));
+    assert!(error_code.contains(
+        "RpcError::ConfigurationError(msg) => write!(f, \"Configuration error: {}\", msg)"
+    ));
     assert!(
-        error_code.contains("RpcError::Unauthorized(msg) => write!(f, \"Unauthorized: {}\", msg)")
-    );
-    assert!(error_code.contains("RpcError::NotFound(msg) => write!(f, \"Not found: {}\", msg)"));
-    assert!(
-        error_code.contains("RpcError::UnknownError(msg) => write!(f, \"Unknown error: {}\", msg)")
+        error_code.contains("RpcError::NotImplemented => write!(f, \"Operation not implemented\")")
     );
 }
 

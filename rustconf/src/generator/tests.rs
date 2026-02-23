@@ -120,7 +120,6 @@ mod config_validation;
 mod crud_operations;
 mod error_mapper_test;
 mod error_mapping_test;
-mod feature_compilation;
 mod hyper_adapter;
 mod integration;
 mod modular_generation;

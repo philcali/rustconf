@@ -40,15 +40,24 @@ fn test_error_mapper_trait_generated_when_restful_rpcs_enabled() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify ErrorMapper trait is generated
+    // Verify ErrorMapper is imported from rustconf-runtime (not generated)
     assert!(
-        content.contains("pub trait ErrorMapper: Send + Sync"),
-        "ErrorMapper trait should be generated with Send + Sync bounds"
+        content.contains("use rustconf_runtime::{"),
+        "Should import from rustconf-runtime when RESTful RPCs are enabled"
+    );
+    assert!(
+        content.contains("ErrorMapper,"),
+        "ErrorMapper should be imported from rustconf-runtime"
+    );
+    assert!(
+        content.contains("DefaultErrorMapper,"),
+        "DefaultErrorMapper should be imported from rustconf-runtime"
     );
 
+    // Verify ErrorMapper trait is NOT generated (comes from rustconf-runtime)
     assert!(
-        content.contains("fn map_error(&self, response: &HttpResponse) -> RpcError;"),
-        "ErrorMapper trait should have map_error method"
+        !content.contains("pub trait ErrorMapper: Send + Sync"),
+        "ErrorMapper trait should not be generated (imported from rustconf-runtime)"
     );
 }
 
@@ -90,16 +99,20 @@ fn test_default_error_mapper_generated_when_restful_rpcs_enabled() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify DefaultErrorMapper struct is generated
+    // Verify DefaultErrorMapper is imported from rustconf-runtime (not generated)
     assert!(
-        content.contains("pub struct DefaultErrorMapper;"),
-        "DefaultErrorMapper struct should be generated"
+        content.contains("DefaultErrorMapper,"),
+        "DefaultErrorMapper should be imported from rustconf-runtime"
     );
 
-    // Verify DefaultErrorMapper implements ErrorMapper trait
+    // Verify DefaultErrorMapper struct is NOT generated (comes from rustconf-runtime)
     assert!(
-        content.contains("impl ErrorMapper for DefaultErrorMapper"),
-        "DefaultErrorMapper should implement ErrorMapper trait"
+        !content.contains("pub struct DefaultErrorMapper;"),
+        "DefaultErrorMapper struct should not be generated (imported from rustconf-runtime)"
+    );
+    assert!(
+        !content.contains("impl ErrorMapper for DefaultErrorMapper"),
+        "DefaultErrorMapper implementation should not be generated (comes from rustconf-runtime)"
     );
 }
 
@@ -141,25 +154,16 @@ fn test_default_error_mapper_maps_status_codes_correctly() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify status code mappings in DefaultErrorMapper implementation
+    // DefaultErrorMapper is now in rustconf-runtime, so we just verify it's imported
     assert!(
-        content.contains("400 => RpcError::InvalidInput(body_text)"),
-        "DefaultErrorMapper should map 400 to InvalidInput"
+        content.contains("DefaultErrorMapper,"),
+        "DefaultErrorMapper should be imported from rustconf-runtime"
     );
 
+    // The actual status code mapping logic is in rustconf-runtime, not in generated code
     assert!(
-        content.contains("401 | 403 => RpcError::Unauthorized(body_text)"),
-        "DefaultErrorMapper should map 401 and 403 to Unauthorized"
-    );
-
-    assert!(
-        content.contains("404 => RpcError::NotFound(body_text)"),
-        "DefaultErrorMapper should map 404 to NotFound"
-    );
-
-    assert!(
-        content.contains("500..=599 => RpcError::ServerError"),
-        "DefaultErrorMapper should map 500-599 to ServerError"
+        !content.contains("400 => RpcError::InvalidInput(body_text)"),
+        "Status code mapping should not be in generated code (it's in rustconf-runtime)"
     );
 }
 
@@ -179,16 +183,16 @@ fn test_restconf_client_has_error_mapper_field() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify RestconfClient has error_mapper field
+    // RestconfClient is now in rustconf-runtime, so we just verify it's imported
     assert!(
-        content.contains("error_mapper: Option<Box<dyn ErrorMapper>>"),
-        "RestconfClient should have error_mapper field"
+        content.contains("RestconfClient,"),
+        "RestconfClient should be imported from rustconf-runtime"
     );
 
-    // Verify error_mapper is initialized to None in constructor
+    // The RestconfClient struct definition is in rustconf-runtime, not in generated code
     assert!(
-        content.contains("error_mapper: None,"),
-        "RestconfClient constructor should initialize error_mapper to None"
+        !content.contains("error_mapper: Option<Box<dyn ErrorMapper>>"),
+        "RestconfClient definition should not be in generated code (it's in rustconf-runtime)"
     );
 }
 
@@ -208,18 +212,18 @@ fn test_restconf_client_has_with_error_mapper_method() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify with_error_mapper method exists
+    // RestconfClient is now in rustconf-runtime, so we just verify it's imported
     assert!(
-        content.contains(
-            "pub fn with_error_mapper(mut self, error_mapper: impl ErrorMapper + 'static) -> Self"
-        ),
-        "RestconfClient should have with_error_mapper method"
+        content.contains("RestconfClient,"),
+        "RestconfClient should be imported from rustconf-runtime"
     );
 
-    // Verify method sets the error_mapper field
+    // The with_error_mapper method is in rustconf-runtime, not in generated code
     assert!(
-        content.contains("self.error_mapper = Some(Box::new(error_mapper));"),
-        "with_error_mapper should set the error_mapper field"
+        !content.contains(
+            "pub fn with_error_mapper(mut self, error_mapper: impl ErrorMapper + 'static) -> Self"
+        ),
+        "with_error_mapper method should not be in generated code (it's in rustconf-runtime)"
     );
 }
 
@@ -241,10 +245,16 @@ fn test_default_error_mapper_respects_derive_config() {
     let result = generator.generate(&module).unwrap();
     let content = &result.files[0].content;
 
-    // Verify DefaultErrorMapper derives Debug, Clone, and Copy
+    // DefaultErrorMapper is now in rustconf-runtime with its own derives
+    // The generated code just imports it
     assert!(
-        content.contains("#[derive(Debug, Clone, Copy)]")
-            && content.contains("pub struct DefaultErrorMapper;"),
-        "DefaultErrorMapper should derive Debug, Clone, and Copy when configured"
+        content.contains("DefaultErrorMapper,"),
+        "DefaultErrorMapper should be imported from rustconf-runtime"
+    );
+
+    // The DefaultErrorMapper struct definition is in rustconf-runtime, not in generated code
+    assert!(
+        !content.contains("pub struct DefaultErrorMapper;"),
+        "DefaultErrorMapper definition should not be in generated code (it's in rustconf-runtime)"
     );
 }

@@ -71,50 +71,18 @@ fn test_error_mapping_logic_in_generated_code() {
         "Should map deserialization failures to DeserializationError"
     );
 
-    // Verify 400 maps to InvalidInput
+    // Verify all other status codes map to HttpError (matching rustconf-runtime)
     assert!(
-        content.contains("400 => Err(RpcError::InvalidInput("),
-        "Status 400 should map to InvalidInput"
+        content.contains("_ => Err(RpcError::HttpError {"),
+        "All error status codes should map to HttpError"
     );
     assert!(
-        content.contains("String::from_utf8_lossy(&response.body).to_string()"),
-        "Error messages should include response body"
-    );
-
-    // Verify 401 and 403 map to Unauthorized
-    assert!(
-        content.contains("401 | 403 => Err(RpcError::Unauthorized("),
-        "Status 401 and 403 should map to Unauthorized"
-    );
-
-    // Verify 404 maps to NotFound
-    assert!(
-        content.contains("404 => Err(RpcError::NotFound("),
-        "Status 404 should map to NotFound"
-    );
-
-    // Verify 500-599 range maps to ServerError
-    assert!(
-        content.contains("500..=599 => Err(RpcError::ServerError {"),
-        "Status 500-599 should map to ServerError"
-    );
-    assert!(
-        content.contains("code: response.status_code,"),
-        "ServerError should include status code"
+        content.contains("status_code: response.status_code,"),
+        "HttpError should include status code"
     );
     assert!(
         content.contains("message: String::from_utf8_lossy(&response.body).to_string()"),
-        "ServerError should include response body as message"
-    );
-
-    // Verify other status codes map to UnknownError
-    assert!(
-        content.contains("_ => Err(RpcError::UnknownError("),
-        "Other status codes should map to UnknownError"
-    );
-    assert!(
-        content.contains("format!(\"Unexpected status code: {}\", response.status_code)"),
-        "UnknownError should include the unexpected status code"
+        "HttpError should include response body as message"
     );
 }
 
@@ -160,28 +128,16 @@ fn test_error_mapping_with_no_output() {
         "Should return Ok(()) when no output expected"
     );
 
-    // Verify error mappings still exist
+    // Verify error mappings use HttpError (matching rustconf-runtime)
     assert!(
-        content.contains("400 => Err(RpcError::InvalidInput("),
-        "Error mappings should still be present"
-    );
-    assert!(
-        content.contains("401 | 403 => Err(RpcError::Unauthorized("),
-        "Error mappings should still be present"
-    );
-    assert!(
-        content.contains("404 => Err(RpcError::NotFound("),
-        "Error mappings should still be present"
-    );
-    assert!(
-        content.contains("500..=599 => Err(RpcError::ServerError {"),
-        "Error mappings should still be present"
+        content.contains("_ => Err(RpcError::HttpError {"),
+        "All error status codes should map to HttpError"
     );
 }
 
 #[test]
 fn test_all_rpc_error_variants_exist() {
-    // Verify all required RpcError variants are generated
+    // Verify all required RpcError variants are generated (matching rustconf-runtime)
     let config = GeneratorConfig::default();
     let generator = CodeGenerator::new(config);
 
@@ -206,33 +162,33 @@ fn test_all_rpc_error_variants_exist() {
     let generated = generator.generate(&module).unwrap();
     let content = &generated.files[0].content;
 
-    // Verify all error variants used in error mapping exist
+    // Verify all error variants used in error mapping exist (matching rustconf-runtime)
     assert!(
-        content.contains("InvalidInput(String)"),
-        "InvalidInput variant should exist"
+        content.contains("TransportError(String)"),
+        "TransportError variant should exist"
     );
     assert!(
-        content.contains("Unauthorized(String)"),
-        "Unauthorized variant should exist"
-    );
-    assert!(
-        content.contains("NotFound(String)"),
-        "NotFound variant should exist"
-    );
-    assert!(
-        content.contains("ServerError { code: u16, message: String }"),
-        "ServerError variant should exist with code and message fields"
-    );
-    assert!(
-        content.contains("UnknownError(String)"),
-        "UnknownError variant should exist"
+        content.contains("SerializationError(String)"),
+        "SerializationError variant should exist"
     );
     assert!(
         content.contains("DeserializationError(String)"),
         "DeserializationError variant should exist"
     );
     assert!(
-        content.contains("SerializationError(String)"),
-        "SerializationError variant should exist"
+        content.contains("ValidationError(String)"),
+        "ValidationError variant should exist"
+    );
+    assert!(
+        content.contains("HttpError { status_code: u16, message: String }"),
+        "HttpError variant should exist with status_code and message fields"
+    );
+    assert!(
+        content.contains("ConfigurationError(String)"),
+        "ConfigurationError variant should exist"
+    );
+    assert!(
+        content.contains("NotImplemented"),
+        "NotImplemented variant should exist"
     );
 }
