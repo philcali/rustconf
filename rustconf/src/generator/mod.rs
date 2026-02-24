@@ -227,7 +227,8 @@ impl CodeGenerator {
         content.push_str("// DO NOT EDIT MANUALLY.\n\n");
 
         // Add use statements (imports from rustconf-runtime)
-        content.push_str("use rustconf_runtime::{RestconfClient, HttpTransport, RpcError};\n");
+        content.push_str("use rustconf_runtime::{RestconfClient, HttpTransport, HttpRequest, HttpMethod, RpcError};\n");
+        content.push_str("use serde::{Deserialize, Serialize};\n");
         content.push_str("use super::types::*;\n");
         content.push('\n');
 

@@ -78,7 +78,7 @@ fn test_modular_generation_creates_multiple_files() {
     assert!(ops_file.is_some());
     let ops_content = &ops_file.unwrap().content;
     assert!(
-        ops_content.contains("use rustconf_runtime::{RestconfClient, HttpTransport, RpcError};")
+        ops_content.contains("use rustconf_runtime::{RestconfClient, HttpTransport, HttpRequest, HttpMethod, RpcError};")
     );
 
     // Check that validation.rs exists
