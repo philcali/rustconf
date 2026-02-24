@@ -64,6 +64,8 @@ impl HttpTransport for CustomTransport {
                 HttpMethod::PUT => reqwest::Method::PUT,
                 HttpMethod::DELETE => reqwest::Method::DELETE,
                 HttpMethod::PATCH => reqwest::Method::PATCH,
+                HttpMethod::OPTIONS => reqwest::Method::OPTIONS,
+                HttpMethod::HEAD => reqwest::Method::HEAD,
             };
 
             // Build and execute request

@@ -166,23 +166,23 @@ This implementation plan breaks down the work into two main phases: creating the
     - Ensure all generated RPC input/output structs have proper serde derives
     - _Requirements: 2.4, 9.1, 12.4_
 
-- [ ] 11. Update documentation and examples
-  - [ ] 11.1 Update rustconf README with intermediate crate pattern
+- [x] 11. Update documentation and examples
+  - [x] 11.1 Update rustconf README with intermediate crate pattern
     - Add section explaining the pattern
     - Provide template build.rs
     - _Requirements: 11.1, 11.2_
   
-  - [ ] 11.2 Create example intermediate crate
+  - [x] 11.2 Create example intermediate crate
     - Create examples/intermediate-client/ directory
     - Set up as a complete intermediate crate example
     - _Requirements: 9.2, 11.1_
   
-  - [ ] 11.3 Update rustconf-runtime README
+  - [x] 11.3 Update rustconf-runtime README
     - Document all public types and traits
     - Explain feature flags
     - _Requirements: 9.4, 12.1, 12.2_
   
-  - [ ] 11.4 Update existing examples to use rustconf-runtime
+  - [x] 11.4 Update existing examples to use rustconf-runtime
     - Update examples/interface-config to use rustconf-runtime
     - Update examples/restful-basic to use rustconf-runtime
     - Update examples/restful-custom-transport to use rustconf-runtime

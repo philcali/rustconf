@@ -1,0 +1,83 @@
+module device-management {
+    yang-version 1.1;
+    namespace "http://example.com/device-management";
+    prefix "dm";
+
+    description
+        "Example YANG module for device management operations.
+         This module demonstrates the intermediate client crate pattern.";
+
+    revision 2024-01-01 {
+        description "Initial revision";
+    }
+
+    // RPC operations
+    rpc restart-device {
+        description "Restart the device";
+        input {
+            leaf delay-seconds {
+                type uint32;
+                default 0;
+                description "Delay before restart in seconds";
+            }
+        }
+        output {
+            leaf success {
+                type boolean;
+                description "Whether the restart was initiated successfully";
+            }
+            leaf message {
+                type string;
+                description "Status message";
+            }
+        }
+    }
+
+    rpc get-system-info {
+        description "Get system information";
+        output {
+            leaf hostname {
+                type string;
+                description "Device hostname";
+            }
+            leaf uptime-seconds {
+                type uint64;
+                description "System uptime in seconds";
+            }
+            leaf version {
+                type string;
+                description "Software version";
+            }
+        }
+    }
+
+    rpc configure-interface {
+        description "Configure a network interface";
+        input {
+            leaf interface-name {
+                type string;
+                mandatory true;
+                description "Name of the interface to configure";
+            }
+            leaf ip-address {
+                type string;
+                description "IP address to assign";
+            }
+            leaf enabled {
+                type boolean;
+                default true;
+                description "Whether the interface should be enabled";
+            }
+        }
+        output {
+            leaf success {
+                type boolean;
+                description "Whether the configuration was successful";
+            }
+            leaf message {
+                type string;
+                description "Result message";
+            }
+        }
+    }
+}
