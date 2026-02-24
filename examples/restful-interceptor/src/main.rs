@@ -1,9 +1,7 @@
 //! Request Interceptor Example
 //!
 //! This example demonstrates how to implement and use request interceptors
-//! for authentication, logging, and custom request/response handling.
-
-use async_trait::async_trait;
+//! for authentication, logging, and custom request handling.
 
 // Include the generated code
 include!(concat!(env!("OUT_DIR"), "/device_management.rs"));
@@ -19,9 +17,8 @@ impl AuthInterceptor {
     }
 }
 
-#[async_trait]
 impl RequestInterceptor for AuthInterceptor {
-    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {
+    fn intercept(&self, request: &mut HttpRequest) -> Result<(), RpcError> {
         println!("   [AuthInterceptor] Adding Authorization header");
         request.headers.push((
             "Authorization".to_string(),
@@ -29,24 +26,13 @@ impl RequestInterceptor for AuthInterceptor {
         ));
         Ok(())
     }
-
-    async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError> {
-        if response.status_code == 401 {
-            println!("   [AuthInterceptor] Detected 401 Unauthorized - token may be expired");
-            return Err(RpcError::Unauthorized(
-                "Token expired or invalid".to_string(),
-            ));
-        }
-        Ok(())
-    }
 }
 
-/// Logging interceptor that records request and response details
+/// Logging interceptor that records request details
 struct LoggingInterceptor;
 
-#[async_trait]
 impl RequestInterceptor for LoggingInterceptor {
-    async fn before_request(&self, request: &mut HttpRequest) -> Result<(), RpcError> {
+    fn intercept(&self, request: &mut HttpRequest) -> Result<(), RpcError> {
         println!("   [LoggingInterceptor] Sending request:");
         println!("     Method: {:?}", request.method);
         println!("     URL: {}", request.url);
@@ -54,14 +40,6 @@ impl RequestInterceptor for LoggingInterceptor {
         if let Some(ref body) = request.body {
             println!("     Body size: {} bytes", body.len());
         }
-        Ok(())
-    }
-
-    async fn after_response(&self, response: &HttpResponse) -> Result<(), RpcError> {
-        println!("   [LoggingInterceptor] Received response:");
-        println!("     Status: {}", response.status_code);
-        println!("     Headers: {} headers", response.headers.len());
-        println!("     Body size: {} bytes", response.body.len());
         Ok(())
     }
 }
@@ -79,6 +57,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(feature = "reqwest-client")]
     {
+        use rustconf_runtime::reqwest_adapter;
+
         // Example 1: Using AuthInterceptor
         println!("Example 1: Authentication Interceptor");
         println!("--------------------------------------");
@@ -113,24 +93,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 println!("   ✗ Error (expected): {}", e);
-                println!("   Notice how all request/response details were logged!");
+                println!("   Notice how all request details were logged!");
             }
         }
 
         println!("\n=== Example Complete ===");
         println!("\nWhat this example demonstrated:");
         println!("✓ Implementing the RequestInterceptor trait");
-        println!("✓ Adding authentication headers with before_request");
-        println!("✓ Validating responses with after_response");
-        println!("✓ Logging request/response details");
-        println!("✓ Aborting requests on authentication errors");
+        println!("✓ Adding authentication headers with intercept");
+        println!("✓ Logging request details");
+        println!("✓ Chaining multiple interceptors");
 
         println!("\nCommon interceptor use cases:");
         println!("• Authentication (Bearer tokens, API keys, OAuth)");
         println!("• Logging and monitoring");
         println!("• Request signing");
         println!("• Custom header injection");
-        println!("• Response validation");
         println!("• Rate limiting");
     }
 

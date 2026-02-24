@@ -78,23 +78,21 @@ fn user_friendly_message(error: &RpcError) -> String {
         RpcError::DeserializationError(_) => {
             "Received an unexpected response from the server.".to_string()
         }
-        RpcError::InvalidInput(msg) => {
+        RpcError::ValidationError(msg) => {
             format!("Invalid input: {}", msg)
         }
-        RpcError::Unauthorized(_) => {
-            "Authentication failed. Please check your credentials.".to_string()
-        }
-        RpcError::NotFound(msg) => {
-            format!("Resource not found: {}", msg)
-        }
-        RpcError::ServerError { code, message } => {
-            format!("Server error ({}): {}", code, message)
-        }
-        RpcError::UnknownError(msg) => {
-            format!("An unexpected error occurred: {}", msg)
-        }
-        RpcError::NetworkError(msg) => {
-            format!("Network error: {}", msg)
+        RpcError::HttpError {
+            status_code,
+            message,
+        } => match *status_code {
+            400 => format!("Bad request: {}", message),
+            401 => "Authentication failed. Please check your credentials.".to_string(),
+            404 => format!("Resource not found: {}", message),
+            500..=599 => format!("Server error: {}", message),
+            _ => format!("HTTP error {}: {}", status_code, message),
+        },
+        RpcError::ConfigurationError(msg) => {
+            format!("Configuration error: {}", msg)
         }
         RpcError::NotImplemented => "This operation is not implemented".to_string(),
     }
@@ -148,14 +146,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(output) => {
             println!("Success: {:?}", output);
         }
-        Err(RpcError::Unauthorized(msg)) => {
+        Err(RpcError::HttpError {
+            status_code: 401,
+            message,
+        }) => {
             println!("   Caught Unauthorized error!");
-            println!("   Message: {}", msg);
+            println!("   Message: {}", message);
             println!("   Action: Refresh authentication token and retry");
         }
-        Err(RpcError::ServerError { code, message }) => {
+        Err(RpcError::HttpError {
+            status_code: 500..=599,
+            message,
+        }) => {
             println!("   Caught Server error!");
-            println!("   Code: {}", code);
             println!("   Message: {}", message);
             println!("   Action: Retry with exponential backoff");
         }

@@ -163,6 +163,7 @@ impl CodeGenerator {
         content.push('\n');
 
         // Re-export rustconf-runtime items
+        content.push_str("#[warn(unused_imports)]\n");
         content.push_str("pub use rustconf_runtime::{\n");
         content.push_str("    RestconfClient,\n");
         content.push_str("    HttpTransport,\n");
@@ -448,6 +449,7 @@ impl CodeGenerator {
         if self.config.enable_restful_rpcs {
             uses.push('\n');
             uses.push_str("// Import runtime types from rustconf-runtime\n");
+            uses.push_str("#[allow(unused_imports)]\n");
             uses.push_str("use rustconf_runtime::{\n");
             uses.push_str("    RestconfClient,\n");
             uses.push_str("    HttpTransport,\n");

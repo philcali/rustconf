@@ -6,6 +6,7 @@ Cargo.lock
 
 # Generated code
 /generated/
+**/generated/
 
 # IDE
 .idea/

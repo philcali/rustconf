@@ -6,8 +6,8 @@ publish = false
 
 [features]
 default = ["reqwest-client"]
-reqwest-client = ["reqwest"]
-hyper-client = ["hyper", "hyper-tls"]
+reqwest-client = ["reqwest", "rustconf-runtime/reqwest"]
+hyper-client = ["hyper", "hyper-tls", "rustconf-runtime/hyper"]
 
 [dependencies]
 rustconf-runtime = { path = "../../rustconf-runtime" }
