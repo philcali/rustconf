@@ -127,13 +127,13 @@ This implementation plan breaks down the work into two main phases: creating the
     - **Property 6: API Compatibility Across Generation Methods**
     - **Validates: Requirements 9.1, 9.2, 9.3, 9.4**
 
-- [ ] 9. Update validation generator for modular output
-  - [ ] 9.1 Create generate_validation_file() method
+- [x] 9. Update validation generator for modular output
+  - [x] 9.1 Create generate_validation_file() method
     - Extract validation type generation into separate file
     - Ensure ValidationError type is included
     - _Requirements: 10.1_
   
-  - [ ]* 9.2 Write property test for validation logic preservation
+  - [x] 9.2 Write property test for validation logic preservation
     - **Property 7: Validation Logic Preservation**
     - **Validates: Requirements 10.1, 10.2**
   
@@ -141,23 +141,30 @@ This implementation plan breaks down the work into two main phases: creating the
     - **Property 9: Validation Error Messages**
     - **Validates: Requirements 10.5**
 
-- [ ] 10. Create integration test for intermediate crate pattern
-  - [ ] 10.1 Create test intermediate crate in tests/fixtures/
+- [x] 10. Create integration test for intermediate crate pattern
+  - [x] 10.1 Create test intermediate crate in tests/fixtures/
     - Set up Cargo.toml with rustconf build-dep and rustconf-runtime dep
     - Create build.rs that generates to src/generated/
     - Add sample YANG file
     - _Requirements: 3.3, 7.1_
   
-  - [ ] 10.2 Create test end-user project
+  - [x] 10.2 Create test end-user project
     - Set up Cargo.toml depending only on test intermediate crate
     - Write code that uses the intermediate crate API
     - _Requirements: 1.1, 1.2, 1.3_
   
-  - [ ]* 10.3 Write integration test that builds both crates
+  - [x]* 10.3 Write integration test that builds both crates
     - Test that intermediate crate builds successfully
     - Test that end-user project builds without rustconf
     - Test that end-user project has no build.rs
     - _Requirements: 1.2, 1.3, 2.2_
+  
+  - [x] 10.4 Fix code generation issues discovered in integration testing
+    - Add missing serde imports (Serialize, Deserialize) to operations.rs
+    - Add missing HttpRequest and HttpMethod imports to operations.rs
+    - Add urlencoding dependency to intermediate crate or use percent_encode function
+    - Ensure all generated RPC input/output structs have proper serde derives
+    - _Requirements: 2.4, 9.1, 12.4_
 
 - [ ] 11. Update documentation and examples
   - [ ] 11.1 Update rustconf README with intermediate crate pattern

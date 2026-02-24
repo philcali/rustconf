@@ -1,0 +1,13 @@
+[package]
+name = "test-end-user"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Prevent this test crate from being part of the parent workspace
+[workspace]
+
+[dependencies]
+test-intermediate-crate = { path = "../test-intermediate-crate" }
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"

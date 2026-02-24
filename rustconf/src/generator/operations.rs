@@ -820,13 +820,13 @@ impl<'a> OperationsGenerator<'a> {
         match self.config.restful_namespace_mode {
             crate::generator::config::NamespaceMode::Enabled => {
                 output.push_str(&format!(
-                    "        let url = format!(\"{{}}/ restconf/operations/{{}}:{{}}\", base, urlencoding::encode(\"{}\"), urlencoding::encode(\"{}\"));\n\n",
+                    "        let url = format!(\"{{}}/ restconf/operations/{{}}:{{}}\", base, percent_encode(\"{}\"), percent_encode(\"{}\"));\n\n",
                     module.name, rpc.name
                 ));
             }
             crate::generator::config::NamespaceMode::Disabled => {
                 output.push_str(&format!(
-                    "        let url = format!(\"{{}}/restconf/operations/{{}}\", base, urlencoding::encode(\"{}\"));\n\n",
+                    "        let url = format!(\"{{}}/restconf/operations/{{}}\", base, percent_encode(\"{}\"));\n\n",
                     rpc.name
                 ));
             }

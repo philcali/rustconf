@@ -1,0 +1,75 @@
+module test-device {
+    namespace "http://example.com/test-device";
+    prefix "td";
+    
+    organization "Example Organization";
+    contact "test@example.com";
+    description "Test device management module for integration testing";
+    
+    revision 2024-01-01 {
+        description "Initial revision";
+    }
+    
+    // Simple container with basic types
+    container device {
+        description "Device configuration and state";
+        
+        leaf name {
+            type string;
+            description "Device name";
+        }
+        
+        leaf enabled {
+            type boolean;
+            default true;
+            description "Whether the device is enabled";
+        }
+        
+        leaf port {
+            type uint16;
+            description "Device port number";
+        }
+    }
+    
+    // RPC operation for testing
+    rpc restart-device {
+        description "Restart the device";
+        
+        input {
+            leaf force {
+                type boolean;
+                default false;
+                description "Force restart without graceful shutdown";
+            }
+        }
+        
+        output {
+            leaf success {
+                type boolean;
+                description "Whether the restart was successful";
+            }
+            
+            leaf message {
+                type string;
+                description "Status message";
+            }
+        }
+    }
+    
+    // Another RPC for testing
+    rpc get-status {
+        description "Get device status";
+        
+        output {
+            leaf uptime {
+                type uint32;
+                description "Device uptime in seconds";
+            }
+            
+            leaf status {
+                type string;
+                description "Current status";
+            }
+        }
+    }
+}

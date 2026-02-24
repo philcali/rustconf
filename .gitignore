@@ -17,3 +17,6 @@ Cargo.lock
 
 # Build artifacts
 /examples/*/target/
+
+# Test artifacts
+/rustconf/tests/fixtures/*/target/
