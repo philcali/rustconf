@@ -1,6 +1,6 @@
 //! HTTP transport abstraction and RESTCONF client implementation.
 
-use crate::error::RpcError;
+use crate::error::{RpcError, ServerError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -577,4 +577,299 @@ impl<T: HttpTransport> RestconfClient<T> {
         let path = path.trim_start_matches('/');
         format!("{}/{}", base, path)
     }
+}
+
+/// Server request structure.
+///
+/// Represents an incoming HTTP request on the server side with method, path,
+/// headers, and optional body. This structure is used by server-side handlers
+/// to process RESTCONF requests.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerRequest {
+    /// The HTTP method for this request
+    pub method: HttpMethod,
+    /// The request path (without base URL)
+    pub path: String,
+    /// HTTP headers as name-value pairs
+    pub headers: Vec<(String, String)>,
+    /// Optional request body as raw bytes
+    pub body: Option<Vec<u8>>,
+}
+
+impl ServerRequest {
+    /// Create a new server request.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::{ServerRequest, HttpMethod};
+    ///
+    /// let request = ServerRequest::new(HttpMethod::GET, "/restconf/data/interfaces");
+    /// assert_eq!(request.path, "/restconf/data/interfaces");
+    /// assert_eq!(request.method, HttpMethod::GET);
+    /// ```
+    pub fn new(method: HttpMethod, path: impl Into<String>) -> Self {
+        Self {
+            method,
+            path: path.into(),
+            headers: Vec::new(),
+            body: None,
+        }
+    }
+
+    /// Add a header to the request.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::{ServerRequest, HttpMethod};
+    ///
+    /// let request = ServerRequest::new(HttpMethod::POST, "/restconf/operations/restart")
+    ///     .with_header("Content-Type", "application/json");
+    /// ```
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Set the request body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::{ServerRequest, HttpMethod};
+    ///
+    /// let body = b"{\"delay\": 5}".to_vec();
+    /// let request = ServerRequest::new(HttpMethod::POST, "/restconf/operations/restart")
+    ///     .with_body(body);
+    /// ```
+    pub fn with_body(mut self, body: Vec<u8>) -> Self {
+        self.body = Some(body);
+        self
+    }
+
+    /// Get a header value by name (case-insensitive).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::{ServerRequest, HttpMethod};
+    ///
+    /// let request = ServerRequest::new(HttpMethod::GET, "/restconf/data/interfaces")
+    ///     .with_header("Accept", "application/json");
+    /// assert_eq!(request.get_header("accept"), Some("application/json"));
+    /// ```
+    pub fn get_header(&self, name: &str) -> Option<&str> {
+        let name_lower = name.to_lowercase();
+        self.headers
+            .iter()
+            .find(|(k, _)| k.to_lowercase() == name_lower)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+/// Server response structure.
+///
+/// Represents an HTTP response to be sent from the server with status code,
+/// headers, and body. This structure is returned by server-side handlers
+/// after processing RESTCONF requests.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerResponse {
+    /// HTTP status code (e.g., 200, 404, 500)
+    pub status_code: u16,
+    /// HTTP headers as name-value pairs
+    pub headers: Vec<(String, String)>,
+    /// Response body as raw bytes
+    pub body: Vec<u8>,
+}
+
+impl ServerResponse {
+    /// Create a new server response.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// let response = ServerResponse::new(200);
+    /// assert_eq!(response.status_code, 200);
+    /// assert!(response.is_success());
+    /// ```
+    pub fn new(status_code: u16) -> Self {
+        Self {
+            status_code,
+            headers: Vec::new(),
+            body: Vec::new(),
+        }
+    }
+
+    /// Create a success response with JSON body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// let body = b"{\"status\": \"ok\"}".to_vec();
+    /// let response = ServerResponse::json(200, body);
+    /// assert_eq!(response.get_header("content-type"), Some("application/json"));
+    /// ```
+    pub fn json(status_code: u16, body: Vec<u8>) -> Self {
+        Self {
+            status_code,
+            headers: vec![("Content-Type".to_string(), "application/json".to_string())],
+            body,
+        }
+    }
+
+    /// Create an error response from a ServerError.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::{ServerResponse, ServerError};
+    ///
+    /// let error = ServerError::NotFound("Resource not found".to_string());
+    /// let response = ServerResponse::from_error(error);
+    /// assert_eq!(response.status_code, 404);
+    /// ```
+    pub fn from_error(error: ServerError) -> Self {
+        let status_code = error.status_code();
+        let body = error.to_restconf_error().into_bytes();
+        Self::json(status_code, body)
+    }
+
+    /// Add a header to the response.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// let response = ServerResponse::new(200)
+    ///     .with_header("Cache-Control", "no-cache");
+    /// ```
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Set the response body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// let body = b"{\"result\": \"success\"}".to_vec();
+    /// let response = ServerResponse::new(200)
+    ///     .with_body(body);
+    /// ```
+    pub fn with_body(mut self, body: Vec<u8>) -> Self {
+        self.body = body;
+        self
+    }
+
+    /// Check if the response status indicates success (2xx).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// assert!(ServerResponse::new(200).is_success());
+    /// assert!(ServerResponse::new(201).is_success());
+    /// assert!(!ServerResponse::new(404).is_success());
+    /// ```
+    pub fn is_success(&self) -> bool {
+        (200..300).contains(&self.status_code)
+    }
+
+    /// Get a header value by name (case-insensitive).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerResponse;
+    ///
+    /// let response = ServerResponse::new(200)
+    ///     .with_header("Content-Type", "application/json");
+    /// assert_eq!(response.get_header("content-type"), Some("application/json"));
+    /// ```
+    pub fn get_header(&self, name: &str) -> Option<&str> {
+        let name_lower = name.to_lowercase();
+        self.headers
+            .iter()
+            .find(|(k, _)| k.to_lowercase() == name_lower)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+/// Trait for server-side HTTP transport implementations.
+///
+/// This trait abstracts over different server frameworks (axum, actix-web, warp, etc.)
+/// allowing users to choose their preferred framework or implement custom server transports.
+/// It mirrors the client-side HttpTransport pattern for consistency.
+///
+/// # Examples
+///
+/// Implementing a custom server transport:
+///
+/// ```no_run
+/// use rustconf_runtime::{ServerTransport, ServerRequest, ServerResponse, ServerError};
+/// use async_trait::async_trait;
+///
+/// struct MyServerTransport {
+///     // Your server state
+/// }
+///
+/// #[async_trait]
+/// impl ServerTransport for MyServerTransport {
+///     async fn serve<F>(
+///         &self,
+///         handler: F,
+///         bind_addr: impl Into<String> + Send,
+///     ) -> Result<(), ServerError>
+///     where
+///         F: Fn(ServerRequest) -> std::pin::Pin<Box<dyn std::future::Future<Output = ServerResponse> + Send>> + Send + Sync + 'static,
+///     {
+///         // Your custom server implementation
+///         todo!()
+///     }
+/// }
+/// ```
+#[async_trait]
+pub trait ServerTransport: Send + Sync {
+    /// Start the server and begin accepting requests.
+    ///
+    /// This method starts the server on the specified bind address and routes
+    /// incoming requests to the provided handler function.
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - A function that processes ServerRequest and returns ServerResponse
+    /// * `bind_addr` - The address to bind the server to (e.g., "127.0.0.1:8080")
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) when the server shuts down gracefully, or a ServerError on failure.
+    ///
+    /// # Errors
+    ///
+    /// This method should return:
+    /// - `ServerError::InternalError` for server startup or binding failures
+    /// - `ServerError::InternalError` for unexpected runtime errors
+    async fn serve<F>(
+        &self,
+        handler: F,
+        bind_addr: impl Into<String> + Send,
+    ) -> Result<(), ServerError>
+    where
+        F: Fn(
+                ServerRequest,
+            )
+                -> std::pin::Pin<Box<dyn std::future::Future<Output = ServerResponse> + Send>>
+            + Send
+            + Sync
+            + 'static;
 }

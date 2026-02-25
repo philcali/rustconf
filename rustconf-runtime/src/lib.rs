@@ -36,9 +36,10 @@ pub mod error;
 pub mod transport;
 
 // Re-export commonly used types
-pub use error::{DefaultErrorMapper, ErrorMapper, RpcError};
+pub use error::{DefaultErrorMapper, ErrorMapper, RpcError, ServerError};
 pub use transport::{
     HttpMethod, HttpRequest, HttpResponse, HttpTransport, RequestInterceptor, RestconfClient,
+    ServerRequest, ServerResponse, ServerTransport,
 };
 
 // Re-export adapter modules when features are enabled
