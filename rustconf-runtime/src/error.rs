@@ -103,6 +103,150 @@ impl fmt::Display for RpcError {
 
 impl std::error::Error for RpcError {}
 
+/// Error type for server-side RESTCONF operations.
+///
+/// This enum covers all error conditions that can occur during
+/// server-side RESTCONF request handling, from validation failures
+/// to handler implementation errors.
+///
+/// # Examples
+///
+/// Handling different error types:
+///
+/// ```
+/// use rustconf_runtime::ServerError;
+///
+/// fn handle_error(error: ServerError) {
+///     let status = error.status_code();
+///     match error {
+///         ServerError::ValidationError(msg) => {
+///             eprintln!("Validation failed ({}): {}", status, msg);
+///         }
+///         ServerError::NotFound(msg) => {
+///             eprintln!("Resource not found ({}): {}", status, msg);
+///         }
+///         _ => {
+///             eprintln!("Server error ({}): {}", status, error);
+///         }
+///     }
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub enum ServerError {
+    /// Request validation failed.
+    ///
+    /// This occurs when incoming request data fails YANG-defined constraints
+    /// such as range checks, pattern matching, or mandatory field requirements.
+    ValidationError(String),
+
+    /// Request deserialization failed.
+    ///
+    /// This occurs when the request body cannot be parsed as expected,
+    /// usually indicating malformed JSON or XML.
+    DeserializationError(String),
+
+    /// Response serialization failed.
+    ///
+    /// This occurs when handler output cannot be converted to the requested
+    /// format (JSON or XML), usually indicating a programming error.
+    SerializationError(String),
+
+    /// Handler implementation error.
+    ///
+    /// This represents errors that occur within handler implementations,
+    /// such as business logic failures or internal processing errors.
+    HandlerError(String),
+
+    /// Resource not found.
+    ///
+    /// This occurs when the requested resource path does not match any
+    /// YANG-defined data node or RPC operation.
+    NotFound(String),
+
+    /// Internal server error.
+    ///
+    /// This represents unexpected errors that don't fit other categories,
+    /// such as system failures or unhandled edge cases.
+    InternalError(String),
+}
+
+impl ServerError {
+    /// Map error to HTTP status code.
+    ///
+    /// Returns the appropriate HTTP status code for this error type:
+    /// - ValidationError: 400 Bad Request
+    /// - DeserializationError: 400 Bad Request
+    /// - NotFound: 404 Not Found
+    /// - SerializationError: 500 Internal Server Error
+    /// - HandlerError: 500 Internal Server Error
+    /// - InternalError: 500 Internal Server Error
+    pub fn status_code(&self) -> u16 {
+        match self {
+            ServerError::ValidationError(_) => 400,
+            ServerError::DeserializationError(_) => 400,
+            ServerError::NotFound(_) => 404,
+            ServerError::SerializationError(_) => 500,
+            ServerError::HandlerError(_) => 500,
+            ServerError::InternalError(_) => 500,
+        }
+    }
+
+    /// Format as RESTCONF error response according to RFC 8040.
+    ///
+    /// Returns a JSON string containing the error formatted according to
+    /// the RESTCONF error response structure defined in RFC 8040 section 7.1.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rustconf_runtime::ServerError;
+    ///
+    /// let error = ServerError::ValidationError("port must be between 1 and 65535".to_string());
+    /// let json = error.to_restconf_error();
+    /// assert!(json.contains("invalid-value"));
+    /// ```
+    pub fn to_restconf_error(&self) -> String {
+        let (error_type, error_tag, error_message) = match self {
+            ServerError::ValidationError(msg) => ("application", "invalid-value", msg.as_str()),
+            ServerError::DeserializationError(msg) => {
+                ("protocol", "malformed-message", msg.as_str())
+            }
+            ServerError::NotFound(msg) => ("application", "invalid-value", msg.as_str()),
+            ServerError::SerializationError(msg) => {
+                ("application", "operation-failed", msg.as_str())
+            }
+            ServerError::HandlerError(msg) => ("application", "operation-failed", msg.as_str()),
+            ServerError::InternalError(msg) => ("application", "operation-failed", msg.as_str()),
+        };
+
+        serde_json::json!({
+            "ietf-restconf:errors": {
+                "error": [{
+                    "error-type": error_type,
+                    "error-tag": error_tag,
+                    "error-message": error_message
+                }]
+            }
+        })
+        .to_string()
+    }
+}
+
+impl fmt::Display for ServerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
+            ServerError::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
+            ServerError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
+            ServerError::HandlerError(msg) => write!(f, "Handler error: {}", msg),
+            ServerError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            ServerError::InternalError(msg) => write!(f, "Internal error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for ServerError {}
+
 /// Trait for mapping HTTP responses to RpcError.
 ///
 /// This allows customization of error handling for different RESTCONF servers
