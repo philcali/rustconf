@@ -4,7 +4,7 @@
 // Source YANG module: test-device
 // Namespace: http://example.com/test-device
 // Prefix: td
-// Generated at: 2026-02-23 17:25:40 UTC
+// Generated at: 2026-02-25 00:53:38 UTC
 
 pub mod types;
 pub mod operations;
@@ -13,6 +13,7 @@ pub mod validation;
 pub use types::*;
 pub use operations::*;
 
+#[warn(unused_imports)]
 pub use rustconf_runtime::{
     RestconfClient,
     HttpTransport,

@@ -177,6 +177,8 @@ mod tests {
                 derive_clone: true,
                 enable_namespace_prefixes: false,
                 restful_namespace_mode: NamespaceMode::Enabled,
+                enable_server_generation: false,
+                server_output_subdir: "server".to_string(),
             };
 
             let generator_single = CodeGenerator::new(config_single);
@@ -197,6 +199,8 @@ mod tests {
                 derive_clone: true,
                 enable_namespace_prefixes: false,
                 restful_namespace_mode: NamespaceMode::Enabled,
+                enable_server_generation: false,
+                server_output_subdir: "server".to_string(),
             };
 
             let generator_modular = CodeGenerator::new(config_modular);
@@ -259,6 +263,8 @@ mod tests {
                 derive_clone: true,
                 enable_namespace_prefixes: false,
                 restful_namespace_mode: NamespaceMode::Enabled,
+                enable_server_generation: false,
+                server_output_subdir: "server".to_string(),
             };
 
             let generator_single = CodeGenerator::new(config_single);
@@ -278,6 +284,8 @@ mod tests {
                 derive_clone: true,
                 enable_namespace_prefixes: false,
                 restful_namespace_mode: NamespaceMode::Enabled,
+                enable_server_generation: false,
+                server_output_subdir: "server".to_string(),
             };
 
             let generator_modular = CodeGenerator::new(config_modular);
@@ -325,6 +333,8 @@ mod tests {
             derive_clone: true,
             enable_namespace_prefixes: false,
             restful_namespace_mode: NamespaceMode::Enabled,
+            enable_server_generation: false,
+            server_output_subdir: "server".to_string(),
         };
 
         let generator = CodeGenerator::new(config);
@@ -390,6 +400,8 @@ mod tests {
             derive_clone: true,
             enable_namespace_prefixes: false,
             restful_namespace_mode: NamespaceMode::Enabled,
+            enable_server_generation: false,
+            server_output_subdir: "server".to_string(),
         };
 
         let generator = CodeGenerator::new(config);

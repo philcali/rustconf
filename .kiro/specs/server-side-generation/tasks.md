@@ -28,14 +28,14 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 14: Transport Adapter Capability**
     - **Validates: Requirements 6.1, 6.4, 6.5**
 
-- [ ] 2. Extend GeneratorConfig for server generation
-  - [ ] 2.1 Add enable_server_generation flag to GeneratorConfig
+- [x] 2. Extend GeneratorConfig for server generation
+  - [x] 2.1 Add enable_server_generation flag to GeneratorConfig
     - Add boolean field with default false
     - Add server_output_subdir field with default "server"
     - Update builder methods
     - _Requirements: 10.1, 10.2_
   
-  - [ ] 2.2 Add configuration validation
+  - [x] 2.2 Add configuration validation
     - Validate output directories are valid paths
     - Validate server generation is compatible with other flags
     - Return clear error messages for invalid configs

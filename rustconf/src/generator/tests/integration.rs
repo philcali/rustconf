@@ -444,6 +444,8 @@ fn test_generated_notification_code_compiles() {
         enable_restful_rpcs: false,
         restful_namespace_mode: NamespaceMode::default(),
         modular_output: false,
+        enable_server_generation: false,
+        server_output_subdir: "server".to_string(),
     };
 
     let generator = CodeGenerator::new(config);
