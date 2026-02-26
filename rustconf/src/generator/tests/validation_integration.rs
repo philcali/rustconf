@@ -13,8 +13,10 @@ use crate::parser::{
 
 #[test]
 fn test_validation_in_request_deserialization() {
-    let mut config = GeneratorConfig::default();
-    config.enable_validation = true;
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
 
     let router_gen = RouterGenerator::new(&config);
 
@@ -65,8 +67,10 @@ fn test_validation_in_request_deserialization() {
 
 #[test]
 fn test_validation_in_response_serialization() {
-    let mut config = GeneratorConfig::default();
-    config.enable_validation = true;
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
 
     let router_gen = RouterGenerator::new(&config);
 
@@ -126,8 +130,10 @@ fn test_validation_in_response_serialization() {
 
 #[test]
 fn test_validation_with_string_constraints() {
-    let mut config = GeneratorConfig::default();
-    config.enable_validation = true;
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
 
     let type_gen = TypeGenerator::new(&config);
     let router_gen = RouterGenerator::new(&config);
@@ -250,8 +256,10 @@ fn test_validation_error_status_codes() {
 
 #[test]
 fn test_validation_preserves_handler_invocation_flow() {
-    let mut config = GeneratorConfig::default();
-    config.enable_validation = true;
+    let config = GeneratorConfig {
+        enable_validation: true,
+        ..Default::default()
+    };
 
     let router_gen = RouterGenerator::new(&config);
 
