@@ -16,6 +16,8 @@ pub mod validation;
 mod notifications;
 mod operations;
 mod paths;
+mod server_handlers;
+mod server_stubs;
 mod types;
 
 pub use config::{GeneratorConfig, NamespaceMode};
