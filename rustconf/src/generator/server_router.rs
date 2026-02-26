@@ -188,8 +188,16 @@ impl<'a> RouterGenerator<'a> {
         output.push_str("        Ok(result)\n");
         output.push_str("    }\n\n");
 
-        // Add deserialization helper
-        output.push_str("    /// Deserialize request body as JSON.\n");
+        // Add deserialization helper with validation
+        output.push_str("    /// Deserialize and validate request body as JSON.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method deserializes the request body and automatically validates\n",
+        );
+        output.push_str(
+            "    /// all YANG constraints through the type's Deserialize implementation.\n",
+        );
+        output.push_str("    /// Validation errors are converted to 400 Bad Request responses.\n");
         output.push_str("    fn deserialize_body<T: serde::de::DeserializeOwned>(\n");
         output.push_str("        request: &ServerRequest,\n");
         output.push_str("    ) -> Result<T, ServerError> {\n");
@@ -197,25 +205,62 @@ impl<'a> RouterGenerator<'a> {
         output.push_str("        let body = request.body.as_ref().ok_or_else(|| {\n");
         output.push_str("            ServerError::DeserializationError(\"Request body is required\".to_string())\n");
         output.push_str("        })?;\n\n");
-        output.push_str("        // Deserialize JSON\n");
+        output.push_str("        // Deserialize JSON with automatic validation\n");
+        output
+            .push_str("        // Validated types will check constraints during deserialization\n");
         output.push_str("        serde_json::from_slice(body).map_err(|e| {\n");
-        output.push_str("            ServerError::DeserializationError(format!(\n");
-        output.push_str("                \"Failed to deserialize request body: {}\",\n");
-        output.push_str("                e\n");
-        output.push_str("            ))\n");
+        output.push_str("            let error_msg = e.to_string();\n");
+        output.push_str("            // Check if this is a validation error\n");
+        output.push_str("            if error_msg.contains(\"outside allowed range\")\n");
+        output.push_str("                || error_msg.contains(\"invalid length\")\n");
+        output.push_str("                || error_msg.contains(\"does not match pattern\")\n");
+        output.push_str("            {\n");
+        output.push_str("                ServerError::ValidationError(format!(\n");
+        output.push_str("                    \"Request validation failed: {}\",\n");
+        output.push_str("                    error_msg\n");
+        output.push_str("                ))\n");
+        output.push_str("            } else {\n");
+        output.push_str("                ServerError::DeserializationError(format!(\n");
+        output.push_str("                    \"Failed to deserialize request body: {}\",\n");
+        output.push_str("                    error_msg\n");
+        output.push_str("                ))\n");
+        output.push_str("            }\n");
         output.push_str("        })\n");
         output.push_str("    }\n\n");
 
-        // Add serialization helper
-        output.push_str("    /// Serialize response data as JSON.\n");
+        // Add serialization helper with validation
+        output.push_str("    /// Validate and serialize response data as JSON.\n");
+        output.push_str("    ///\n");
+        output.push_str(
+            "    /// This method validates the response data by attempting to serialize it.\n",
+        );
+        output.push_str(
+            "    /// If serialization succeeds, the data is valid according to YANG constraints.\n",
+        );
+        output.push_str(
+            "    /// Validation errors are converted to 500 Internal Server Error responses.\n",
+        );
         output.push_str("    fn serialize_response<T: serde::Serialize>(\n");
         output.push_str("        data: T,\n");
         output.push_str("    ) -> Result<ServerResponse, ServerError> {\n");
+        output.push_str("        // Serialize to JSON - this validates the data structure\n");
         output.push_str("        let body = serde_json::to_vec(&data).map_err(|e| {\n");
-        output.push_str("            ServerError::SerializationError(format!(\n");
-        output.push_str("                \"Failed to serialize response: {}\",\n");
-        output.push_str("                e\n");
-        output.push_str("            ))\n");
+        output.push_str("            let error_msg = e.to_string();\n");
+        output.push_str("            // Check if this is a validation error\n");
+        output.push_str("            if error_msg.contains(\"outside allowed range\")\n");
+        output.push_str("                || error_msg.contains(\"invalid length\")\n");
+        output.push_str("                || error_msg.contains(\"does not match pattern\")\n");
+        output.push_str("            {\n");
+        output.push_str("                ServerError::ValidationError(format!(\n");
+        output.push_str("                    \"Response validation failed: {}\",\n");
+        output.push_str("                    error_msg\n");
+        output.push_str("                ))\n");
+        output.push_str("            } else {\n");
+        output.push_str("                ServerError::SerializationError(format!(\n");
+        output.push_str("                    \"Failed to serialize response: {}\",\n");
+        output.push_str("                    error_msg\n");
+        output.push_str("                ))\n");
+        output.push_str("            }\n");
         output.push_str("        })?;\n\n");
         output.push_str("        Ok(ServerResponse::json(200, body))\n");
         output.push_str("    }\n");

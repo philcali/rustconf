@@ -179,3 +179,72 @@ fn test_router_includes_serialization_helpers() {
     assert!(code.contains("fn serialize_response"));
     assert!(code.contains("serde_json"));
 }
+
+#[test]
+fn test_router_includes_validation_in_deserialization() {
+    let config = GeneratorConfig::default();
+    let generator = RouterGenerator::new(&config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "http://example.com/test".to_string(),
+        prefix: "test".to_string(),
+        yang_version: Some(YangVersion::V1_1),
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let result = generator.generate_router(&module);
+    assert!(result.is_ok());
+
+    let code = result.unwrap();
+    // Verify validation error handling in deserialization
+    assert!(code.contains("Request validation failed"));
+    assert!(code.contains("outside allowed range"));
+    assert!(code.contains("invalid length"));
+    assert!(code.contains("does not match pattern"));
+    assert!(code.contains("ServerError::ValidationError"));
+}
+
+#[test]
+fn test_router_includes_validation_in_serialization() {
+    let config = GeneratorConfig::default();
+    let generator = RouterGenerator::new(&config);
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "http://example.com/test".to_string(),
+        prefix: "test".to_string(),
+        yang_version: Some(YangVersion::V1_1),
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let result = generator.generate_router(&module);
+    assert!(result.is_ok());
+
+    let code = result.unwrap();
+    // Verify validation error handling in serialization
+    assert!(code.contains("Response validation failed"));
+    assert!(code.contains("outside allowed range"));
+    assert!(code.contains("invalid length"));
+    assert!(code.contains("does not match pattern"));
+    // Verify it checks for validation errors in serialize_response
+    let serialize_fn_start = code
+        .find("fn serialize_response")
+        .expect("serialize_response not found");
+    let serialize_fn_end = code[serialize_fn_start..]
+        .find("\n    }")
+        .expect("end of serialize_response not found")
+        + serialize_fn_start;
+    let serialize_fn = &code[serialize_fn_start..serialize_fn_end];
+    assert!(serialize_fn.contains("ServerError::ValidationError"));
+}
