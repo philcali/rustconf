@@ -17,6 +17,7 @@ mod notifications;
 mod operations;
 mod paths;
 mod server_handlers;
+mod server_router;
 mod server_stubs;
 mod types;
 

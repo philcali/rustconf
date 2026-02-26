@@ -94,17 +94,17 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 3: Stub Handler Completeness**
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5**
 
-- [ ] 5. Checkpoint - Ensure handler generation compiles
+- [x] 5. Checkpoint - Ensure handler generation compiles
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement request router
-  - [ ] 6.1 Create server/router.rs generator module
+- [x] 6. Implement request router
+  - [x] 6.1 Create server/router.rs generator module
     - Add RouterGenerator struct
     - Generate RestconfRouter struct with handler field
     - Implement route() method skeleton
     - _Requirements: 4.1, 4.5_
   
-  - [ ] 6.2 Implement path parsing and matching
+  - [x] 6.2 Implement path parsing and matching
     - Parse RESTCONF URL paths into segments
     - Match against YANG-defined paths
     - Extract list keys from path segments
@@ -112,13 +112,13 @@ This plan implements server-side code generation for rustconf, enabling develope
     - Return 404 for unmatched paths
     - _Requirements: 4.1, 4.4, 4.6_
   
-  - [ ] 6.3 Implement request deserialization
+  - [x] 6.3 Implement request deserialization
     - Deserialize request body based on matched operation
     - Use serde_json for JSON parsing
     - Return 400 for deserialization failures with error details
     - _Requirements: 4.2, 4.3_
   
-  - [ ] 6.4 Implement handler method dispatch
+  - [x] 6.4 Implement handler method dispatch
     - Call appropriate handler trait method based on matched path
     - Pass deserialized input parameters
     - Handle async handler invocation
