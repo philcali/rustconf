@@ -135,4 +135,5 @@ mod server_stub_integration;
 mod type_generation;
 mod url_path;
 mod url_path_example;
+mod validation_integration;
 mod validation_preservation;

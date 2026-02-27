@@ -4,7 +4,7 @@
 // Source YANG module: test-device
 // Namespace: http://example.com/test-device
 // Prefix: td
-// Generated at: 2026-02-26 19:55:29 UTC
+// Generated at: 2026-02-26 20:35:39 UTC
 
 pub mod types;
 pub mod operations;

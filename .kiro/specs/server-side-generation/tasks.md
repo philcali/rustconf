@@ -130,15 +130,15 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 8: Invalid Request Handling**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6**
 
-- [ ] 7. Implement validation wrappers
-  - [ ] 7.1 Add request validation before handler invocation
+- [x] 7. Implement validation wrappers
+  - [x] 7.1 Add request validation before handler invocation
     - Reuse existing validation infrastructure from validation.rs
     - Validate all input fields against YANG constraints
     - Return 400 with constraint details if validation fails
     - Skip handler invocation on validation failure
     - _Requirements: 3.1, 3.2, 7.1, 7.2_
   
-  - [ ] 7.2 Add response validation before serialization
+  - [x] 7.2 Add response validation before serialization
     - Validate handler output against YANG constraints
     - Check range, pattern, and mandatory field constraints
     - Return 500 if output validation fails
@@ -169,7 +169,7 @@ This plan implements server-side code generation for rustconf, enabling develope
     - Support multiple errors in single response
     - _Requirements: 5.2, 9.5, 9.6_
   
-  - [ ]* 8.4 Write property tests for serialization
+  - [ ] 8.4 Write property tests for serialization
     - **Property 9: Response Serialization Round-Trip**
     - **Property 11: Content-Type Header Presence**
     - **Property 12: Content Negotiation**
