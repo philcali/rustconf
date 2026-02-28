@@ -6,10 +6,6 @@
 //! - Supports subscriber management
 //! - Handles concurrent subscribers
 //! - Serializes notifications according to YANG schema
-//!
-//! NOTE: The YANG parser currently skips notification statements (see parser/mod.rs line 1000-1003).
-//! These tests verify the notification generation infrastructure is in place and working,
-//! but full end-to-end notification support requires implementing notification parsing first.
 
 use rustconf::build::RustconfBuilder;
 use std::fs;
@@ -17,7 +13,6 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
-#[ignore] // Ignored until notification parsing is implemented in the YANG parser
 fn test_notification_publisher_generation_and_compilation() {
     // Create temporary directory for generated code
     let temp_dir = TempDir::new().unwrap();

@@ -2775,4 +2775,260 @@ mod tests {
         assert_eq!(module.rpcs.len(), 1);
         assert_eq!(module.rpcs[0].name, "do-something");
     }
+
+    // ========== Notification Parsing Tests ==========
+
+    #[test]
+    fn test_parse_notification_simple() {
+        let input = r#"
+            module test-notification {
+                namespace "urn:test:notification";
+                prefix tn;
+
+                notification link-up {
+                    description "Link state changed to up";
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse notification: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+
+        assert_eq!(module.notifications.len(), 1);
+        let notification = &module.notifications[0];
+        assert_eq!(notification.name, "link-up");
+        assert_eq!(
+            notification.description,
+            Some("Link state changed to up".to_string())
+        );
+        assert_eq!(notification.data_nodes.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_notification_with_leaf_nodes() {
+        let input = r#"
+            module test-notification {
+                namespace "urn:test:notification";
+                prefix tn;
+
+                notification interface-state-change {
+                    description "Interface state changed";
+                    leaf interface-name {
+                        type string;
+                        mandatory true;
+                    }
+                    leaf new-state {
+                        type string;
+                    }
+                    leaf timestamp {
+                        type uint64;
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse notification: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+
+        assert_eq!(module.notifications.len(), 1);
+        let notification = &module.notifications[0];
+        assert_eq!(notification.name, "interface-state-change");
+        assert_eq!(
+            notification.description,
+            Some("Interface state changed".to_string())
+        );
+        assert_eq!(notification.data_nodes.len(), 3);
+
+        // Verify leaf nodes
+        if let crate::parser::DataNode::Leaf(leaf) = &notification.data_nodes[0] {
+            assert_eq!(leaf.name, "interface-name");
+            assert!(leaf.mandatory);
+        } else {
+            panic!("Expected Leaf data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_notification_with_complex_nested_structures() {
+        let input = r#"
+            module test-notification {
+                namespace "urn:test:notification";
+                prefix tn;
+
+                notification system-alert {
+                    description "System alert notification";
+                    container alert-details {
+                        leaf severity {
+                            type string;
+                        }
+                        leaf message {
+                            type string;
+                        }
+                    }
+                    list affected-components {
+                        key "component-id";
+                        leaf component-id {
+                            type string;
+                        }
+                        leaf status {
+                            type string;
+                        }
+                    }
+                    leaf-list tags {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse notification: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+
+        assert_eq!(module.notifications.len(), 1);
+        let notification = &module.notifications[0];
+        assert_eq!(notification.name, "system-alert");
+        assert_eq!(notification.data_nodes.len(), 3);
+
+        // Verify container
+        if let crate::parser::DataNode::Container(container) = &notification.data_nodes[0] {
+            assert_eq!(container.name, "alert-details");
+            assert_eq!(container.children.len(), 2);
+        } else {
+            panic!("Expected Container data node");
+        }
+
+        // Verify list
+        if let crate::parser::DataNode::List(list) = &notification.data_nodes[1] {
+            assert_eq!(list.name, "affected-components");
+            assert_eq!(list.keys, vec!["component-id"]);
+        } else {
+            panic!("Expected List data node");
+        }
+
+        // Verify leaf-list
+        if let crate::parser::DataNode::LeafList(leaf_list) = &notification.data_nodes[2] {
+            assert_eq!(leaf_list.name, "tags");
+        } else {
+            panic!("Expected LeafList data node");
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_notifications() {
+        let input = r#"
+            module test-notification {
+                namespace "urn:test:notification";
+                prefix tn;
+
+                notification event-one {
+                    description "First event";
+                    leaf data1 {
+                        type string;
+                    }
+                }
+
+                notification event-two {
+                    description "Second event";
+                    leaf data2 {
+                        type uint32;
+                    }
+                }
+
+                notification event-three {
+                    description "Third event";
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse notifications: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+
+        assert_eq!(module.notifications.len(), 3);
+        assert_eq!(module.notifications[0].name, "event-one");
+        assert_eq!(module.notifications[1].name, "event-two");
+        assert_eq!(module.notifications[2].name, "event-three");
+    }
+
+    #[test]
+    fn test_parse_module_with_data_nodes_rpcs_and_notifications() {
+        let input = r#"
+            module mixed-complete {
+                namespace "urn:test:mixed";
+                prefix mx;
+
+                container config {
+                    leaf setting {
+                        type string;
+                    }
+                }
+
+                rpc do-something {
+                    description "Do something";
+                    input {
+                        leaf value {
+                            type uint32;
+                        }
+                    }
+                }
+
+                notification state-changed {
+                    description "State changed";
+                    leaf new-state {
+                        type string;
+                    }
+                }
+
+                list items {
+                    key "id";
+                    leaf id {
+                        type string;
+                    }
+                }
+            }
+        "#;
+
+        let mut parser = YangParser::new();
+        let result = parser.parse_string(input, "test.yang");
+
+        assert!(
+            result.is_ok(),
+            "Failed to parse mixed module: {:?}",
+            result.err()
+        );
+        let module = result.unwrap();
+
+        assert_eq!(module.data_nodes.len(), 2);
+        assert_eq!(module.rpcs.len(), 1);
+        assert_eq!(module.notifications.len(), 1);
+        assert_eq!(module.rpcs[0].name, "do-something");
+        assert_eq!(module.notifications[0].name, "state-changed");
+    }
 }
