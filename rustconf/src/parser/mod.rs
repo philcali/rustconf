@@ -947,6 +947,7 @@ impl ModuleParser {
         let mut groupings = Vec::new();
         let mut data_nodes = Vec::new();
         let mut rpcs = Vec::new();
+        let mut notifications = Vec::new();
 
         while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
             match self.peek() {
@@ -997,8 +998,11 @@ impl ModuleParser {
                 Token::Rpc => {
                     rpcs.push(self.parse_rpc()?);
                 }
-                Token::Notification | Token::Action => {
-                    // Skip notification and action statements for now
+                Token::Notification => {
+                    notifications.push(self.parse_notification()?);
+                }
+                Token::Action => {
+                    // Skip action statements for now
                     self.skip_statement()?;
                 }
                 _ => {
@@ -1028,7 +1032,7 @@ impl ModuleParser {
             groupings,
             data_nodes,
             rpcs,
-            notifications: Vec::new(),
+            notifications,
         })
     }
 
@@ -2164,6 +2168,55 @@ impl ModuleParser {
             description,
             input,
             output,
+        })
+    }
+
+    /// Parse notification statement: notification <identifier> { <data-definition-statements> }
+    fn parse_notification(&mut self) -> Result<Notification, ParseError> {
+        self.expect(Token::Notification)?;
+
+        let name = self.parse_identifier_or_keyword()?;
+
+        self.expect(Token::LeftBrace)?;
+
+        let mut description = None;
+        let mut data_nodes = Vec::new();
+
+        while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+            match self.peek() {
+                Token::Description => {
+                    description = Some(self.parse_description_statement()?);
+                }
+                Token::Container => {
+                    data_nodes.push(DataNode::Container(self.parse_container()?));
+                }
+                Token::List => {
+                    data_nodes.push(DataNode::List(self.parse_list()?));
+                }
+                Token::Leaf => {
+                    data_nodes.push(DataNode::Leaf(self.parse_leaf()?));
+                }
+                Token::LeafList => {
+                    data_nodes.push(DataNode::LeafList(self.parse_leaf_list()?));
+                }
+                Token::Choice => {
+                    data_nodes.push(DataNode::Choice(self.parse_choice()?));
+                }
+                Token::Uses => {
+                    data_nodes.push(DataNode::Uses(self.parse_uses()?));
+                }
+                _ => {
+                    self.skip_statement()?;
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Notification {
+            name,
+            description,
+            data_nodes,
         })
     }
 
