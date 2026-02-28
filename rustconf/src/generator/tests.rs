@@ -130,6 +130,7 @@ mod rpc_error_generation;
 mod rpc_operations;
 mod server_handler_generation;
 mod server_router_generation;
+mod server_serialization;
 mod server_stub_generation;
 mod server_stub_integration;
 mod type_generation;

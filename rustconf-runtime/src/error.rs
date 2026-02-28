@@ -139,6 +139,12 @@ pub enum ServerError {
     /// such as range checks, pattern matching, or mandatory field requirements.
     ValidationError(String),
 
+    /// Multiple validation errors occurred.
+    ///
+    /// This variant allows reporting multiple validation failures in a single
+    /// response, which is useful when multiple fields violate constraints.
+    MultipleValidationErrors(Vec<String>),
+
     /// Request deserialization failed.
     ///
     /// This occurs when the request body cannot be parsed as expected,
@@ -175,6 +181,7 @@ impl ServerError {
     ///
     /// Returns the appropriate HTTP status code for this error type:
     /// - ValidationError: 400 Bad Request
+    /// - MultipleValidationErrors: 400 Bad Request
     /// - DeserializationError: 400 Bad Request
     /// - NotFound: 404 Not Found
     /// - SerializationError: 500 Internal Server Error
@@ -183,6 +190,7 @@ impl ServerError {
     pub fn status_code(&self) -> u16 {
         match self {
             ServerError::ValidationError(_) => 400,
+            ServerError::MultipleValidationErrors(_) => 400,
             ServerError::DeserializationError(_) => 400,
             ServerError::NotFound(_) => 404,
             ServerError::SerializationError(_) => 500,
@@ -195,6 +203,7 @@ impl ServerError {
     ///
     /// Returns a JSON string containing the error formatted according to
     /// the RESTCONF error response structure defined in RFC 8040 section 7.1.
+    /// Supports multiple errors in a single response.
     ///
     /// # Example
     ///
@@ -206,26 +215,44 @@ impl ServerError {
     /// assert!(json.contains("invalid-value"));
     /// ```
     pub fn to_restconf_error(&self) -> String {
-        let (error_type, error_tag, error_message) = match self {
-            ServerError::ValidationError(msg) => ("application", "invalid-value", msg.as_str()),
+        let errors = match self {
+            ServerError::ValidationError(msg) => {
+                vec![("application", "invalid-value", msg.as_str())]
+            }
+            ServerError::MultipleValidationErrors(messages) => messages
+                .iter()
+                .map(|msg| ("application", "invalid-value", msg.as_str()))
+                .collect(),
             ServerError::DeserializationError(msg) => {
-                ("protocol", "malformed-message", msg.as_str())
+                vec![("protocol", "malformed-message", msg.as_str())]
             }
-            ServerError::NotFound(msg) => ("application", "invalid-value", msg.as_str()),
+            ServerError::NotFound(msg) => vec![("application", "invalid-value", msg.as_str())],
             ServerError::SerializationError(msg) => {
-                ("application", "operation-failed", msg.as_str())
+                vec![("application", "operation-failed", msg.as_str())]
             }
-            ServerError::HandlerError(msg) => ("application", "operation-failed", msg.as_str()),
-            ServerError::InternalError(msg) => ("application", "operation-failed", msg.as_str()),
+            ServerError::HandlerError(msg) => {
+                vec![("application", "operation-failed", msg.as_str())]
+            }
+            ServerError::InternalError(msg) => {
+                vec![("application", "operation-failed", msg.as_str())]
+            }
         };
 
-        serde_json::json!({
-            "ietf-restconf:errors": {
-                "error": [{
+        // Build error array
+        let error_array: Vec<serde_json::Value> = errors
+            .into_iter()
+            .map(|(error_type, error_tag, error_message)| {
+                serde_json::json!({
                     "error-type": error_type,
                     "error-tag": error_tag,
                     "error-message": error_message
-                }]
+                })
+            })
+            .collect();
+
+        serde_json::json!({
+            "ietf-restconf:errors": {
+                "error": error_array
             }
         })
         .to_string()
@@ -236,6 +263,16 @@ impl fmt::Display for ServerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ServerError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
+            ServerError::MultipleValidationErrors(messages) => {
+                write!(f, "Multiple validation errors: ")?;
+                for (i, msg) in messages.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{}", msg)?;
+                }
+                Ok(())
+            }
             ServerError::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             ServerError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             ServerError::HandlerError(msg) => write!(f, "Handler error: {}", msg),
