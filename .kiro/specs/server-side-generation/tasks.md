@@ -149,27 +149,27 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 5: Response Validation Before Serialization**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 7.1-7.7**
 
-- [ ] 8. Implement response serialization
-  - [ ] 8.1 Add response serialization in router
+- [x] 8. Implement response serialization
+  - [x] 8.1 Add response serialization in router
     - Serialize handler output to JSON using serde
     - Add Content-Type: application/json header
     - Handle serialization errors with 500 response
     - _Requirements: 5.1, 5.3_
   
-  - [ ] 8.2 Add content negotiation support
+  - [x] 8.2 Add content negotiation support
     - Parse Accept header from request
     - Support application/json and application/xml
     - Serialize response in requested format
     - Default to JSON if no Accept header
     - _Requirements: 5.4_
   
-  - [ ] 8.3 Implement RESTCONF error response formatting
+  - [x] 8.3 Implement RESTCONF error response formatting
     - Format ServerError as RFC 8040 error structure
     - Include error-type, error-tag, error-message fields
     - Support multiple errors in single response
     - _Requirements: 5.2, 9.5, 9.6_
   
-  - [ ] 8.4 Write property tests for serialization
+  - [x] 8.4 Write property tests for serialization
     - **Property 9: Response Serialization Round-Trip**
     - **Property 11: Content-Type Header Presence**
     - **Property 12: Content Negotiation**

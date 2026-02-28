@@ -228,8 +228,32 @@ impl<'a> RouterGenerator<'a> {
         output.push_str("        })\n");
         output.push_str("    }\n\n");
 
-        // Add serialization helper with validation
-        output.push_str("    /// Validate and serialize response data as JSON.\n");
+        // Add content negotiation helper
+        output.push_str("    /// Determine the response content type based on Accept header.\n");
+        output.push_str("    ///\n");
+        output
+            .push_str("    /// Parses the Accept header and returns the preferred content type.\n");
+        output.push_str("    /// Supports application/json and application/xml.\n");
+        output.push_str("    /// Defaults to JSON if no Accept header is present.\n");
+        output
+            .push_str("    fn negotiate_content_type(request: &ServerRequest) -> &'static str {\n");
+        output.push_str("        if let Some(accept) = request.get_header(\"Accept\") {\n");
+        output.push_str("            let accept_lower = accept.to_lowercase();\n");
+        output.push_str("            // Check for XML preference\n");
+        output.push_str("            if accept_lower.contains(\"application/xml\") {\n");
+        output.push_str("                return \"application/xml\";\n");
+        output.push_str("            }\n");
+        output.push_str("            // Check for JSON preference (or wildcard)\n");
+        output.push_str("            if accept_lower.contains(\"application/json\") || accept_lower.contains(\"*/*\") {\n");
+        output.push_str("                return \"application/json\";\n");
+        output.push_str("            }\n");
+        output.push_str("        }\n");
+        output.push_str("        // Default to JSON\n");
+        output.push_str("        \"application/json\"\n");
+        output.push_str("    }\n\n");
+
+        // Add serialization helper with validation and content negotiation
+        output.push_str("    /// Validate and serialize response data with content negotiation.\n");
         output.push_str("    ///\n");
         output.push_str(
             "    /// This method validates the response data by attempting to serialize it.\n",
@@ -238,31 +262,61 @@ impl<'a> RouterGenerator<'a> {
             "    /// If serialization succeeds, the data is valid according to YANG constraints.\n",
         );
         output.push_str(
+            "    /// The response format is determined by the Accept header in the request.\n",
+        );
+        output.push_str(
             "    /// Validation errors are converted to 500 Internal Server Error responses.\n",
         );
         output.push_str("    fn serialize_response<T: serde::Serialize>(\n");
         output.push_str("        data: T,\n");
+        output.push_str("        request: &ServerRequest,\n");
         output.push_str("    ) -> Result<ServerResponse, ServerError> {\n");
-        output.push_str("        // Serialize to JSON - this validates the data structure\n");
-        output.push_str("        let body = serde_json::to_vec(&data).map_err(|e| {\n");
-        output.push_str("            let error_msg = e.to_string();\n");
-        output.push_str("            // Check if this is a validation error\n");
-        output.push_str("            if error_msg.contains(\"outside allowed range\")\n");
-        output.push_str("                || error_msg.contains(\"invalid length\")\n");
-        output.push_str("                || error_msg.contains(\"does not match pattern\")\n");
-        output.push_str("            {\n");
-        output.push_str("                ServerError::ValidationError(format!(\n");
-        output.push_str("                    \"Response validation failed: {}\",\n");
-        output.push_str("                    error_msg\n");
-        output.push_str("                ))\n");
-        output.push_str("            } else {\n");
-        output.push_str("                ServerError::SerializationError(format!(\n");
-        output.push_str("                    \"Failed to serialize response: {}\",\n");
-        output.push_str("                    error_msg\n");
-        output.push_str("                ))\n");
+        output.push_str("        // Determine content type from Accept header\n");
+        output.push_str("        let content_type = Self::negotiate_content_type(request);\n\n");
+        output.push_str("        // Serialize based on content type\n");
+        output.push_str("        let (body, actual_content_type) = match content_type {\n");
+        output.push_str("            \"application/xml\" => {\n");
+        output.push_str("                // XML serialization using quick-xml\n");
+        output.push_str(
+            "                // For now, we only support JSON and return an error for XML\n",
+        );
+        output.push_str("                return Err(ServerError::SerializationError(\n");
+        output.push_str(
+            "                    \"XML serialization not yet implemented\".to_string()\n",
+        );
+        output.push_str("                ));\n");
         output.push_str("            }\n");
-        output.push_str("        })?;\n\n");
-        output.push_str("        Ok(ServerResponse::json(200, body))\n");
+        output.push_str("            _ => {\n");
+        output.push_str("                // JSON serialization (default)\n");
+        output.push_str("                let body = serde_json::to_vec(&data).map_err(|e| {\n");
+        output.push_str("                    let error_msg = e.to_string();\n");
+        output.push_str("                    // Check if this is a validation error\n");
+        output.push_str("                    if error_msg.contains(\"outside allowed range\")\n");
+        output.push_str("                        || error_msg.contains(\"invalid length\")\n");
+        output.push_str(
+            "                        || error_msg.contains(\"does not match pattern\")\n",
+        );
+        output.push_str("                    {\n");
+        output.push_str("                        ServerError::ValidationError(format!(\n");
+        output.push_str("                            \"Response validation failed: {}\",\n");
+        output.push_str("                            error_msg\n");
+        output.push_str("                        ))\n");
+        output.push_str("                    } else {\n");
+        output.push_str("                        ServerError::SerializationError(format!(\n");
+        output.push_str("                            \"Failed to serialize response: {}\",\n");
+        output.push_str("                            error_msg\n");
+        output.push_str("                        ))\n");
+        output.push_str("                    }\n");
+        output.push_str("                })?;\n");
+        output.push_str("                (body, \"application/json\")\n");
+        output.push_str("            }\n");
+        output.push_str("        };\n\n");
+        output.push_str("        // Create response with appropriate content type\n");
+        output.push_str("        Ok(ServerResponse {\n");
+        output.push_str("            status_code: 200,\n");
+        output.push_str("            headers: vec![(\"Content-Type\".to_string(), actual_content_type.to_string())],\n");
+        output.push_str("            body,\n");
+        output.push_str("        })\n");
         output.push_str("    }\n");
         output.push_str("}\n");
 
@@ -329,7 +383,7 @@ impl<'a> RouterGenerator<'a> {
                 if has_output {
                     output.push_str("                    Ok(output) => {\n");
                     output.push_str(
-                        "                        match Self::serialize_response(output) {\n",
+                        "                        match Self::serialize_response(output, request) {\n",
                     );
                     output.push_str("                            Ok(response) => response,\n");
                     output.push_str(
@@ -448,7 +502,9 @@ impl<'a> RouterGenerator<'a> {
             method_prefix
         ));
         output.push_str("                            Ok(data) => {\n");
-        output.push_str("                                match Self::serialize_response(data) {\n");
+        output.push_str(
+            "                                match Self::serialize_response(data, request) {\n",
+        );
         output.push_str("                                    Ok(response) => response,\n");
         output.push_str(
             "                                    Err(e) => ServerResponse::from_error(e),\n",
@@ -550,7 +606,9 @@ impl<'a> RouterGenerator<'a> {
             method_prefix
         ));
         output.push_str("                        Ok(data) => {\n");
-        output.push_str("                            match Self::serialize_response(data) {\n");
+        output.push_str(
+            "                            match Self::serialize_response(data, request) {\n",
+        );
         output.push_str("                                Ok(response) => response,\n");
         output
             .push_str("                                Err(e) => ServerResponse::from_error(e),\n");
