@@ -17,6 +17,7 @@ mod notifications;
 mod operations;
 mod paths;
 mod server_handlers;
+pub(crate) mod server_notifications;
 mod server_router;
 mod server_stubs;
 mod types;

@@ -1,0 +1,69 @@
+module test-notifications {
+    yang-version 1.1;
+    namespace "http://example.com/test-notifications";
+    prefix "tn";
+
+    description
+        "Test YANG module for notification support demonstration.";
+
+    revision 2024-01-01 {
+        description "Initial revision";
+    }
+
+    // Notification definitions
+    notification link-up {
+        description "Link state changed to up";
+        leaf interface-name {
+            type string;
+            mandatory true;
+            description "Name of the interface";
+        }
+        leaf timestamp {
+            type uint64;
+            mandatory true;
+            description "Timestamp of the event";
+        }
+    }
+
+    notification link-down {
+        description "Link state changed to down";
+        leaf interface-name {
+            type string;
+            mandatory true;
+            description "Name of the interface";
+        }
+        leaf timestamp {
+            type uint64;
+            mandatory true;
+            description "Timestamp of the event";
+        }
+        leaf reason {
+            type string;
+            description "Reason for link down";
+        }
+    }
+
+    notification system-alarm {
+        description "System alarm notification";
+        leaf severity {
+            type enumeration {
+                enum critical;
+                enum major;
+                enum minor;
+                enum warning;
+            }
+            mandatory true;
+            description "Alarm severity level";
+        }
+        leaf message {
+            type string;
+            mandatory true;
+            description "Alarm message";
+        }
+        leaf alarm-id {
+            type uint32;
+            mandatory true;
+            description "Unique alarm identifier";
+        }
+    }
+}
