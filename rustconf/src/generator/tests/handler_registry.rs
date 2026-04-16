@@ -18,18 +18,6 @@ mod tests {
         "[a-z][a-z0-9_-]{2,20}".prop_map(|s| s.replace('_', "-"))
     }
 
-    /// Generate a valid path pattern
-    fn path_pattern() -> impl Strategy<Value = String> {
-        prop::collection::vec("[a-z][a-z0-9_-]{1,10}", 1..5)
-            .prop_map(|segments| format!("/{}", segments.join("/")))
-    }
-
-    /// Generate a set of unique path patterns
-    fn path_patterns(min: usize, max: usize) -> impl Strategy<Value = Vec<String>> {
-        prop::collection::hash_set(path_pattern(), min..=max)
-            .prop_map(|set| set.into_iter().collect())
-    }
-
     /// Generate a simple YANG module with data nodes
     fn simple_yang_module() -> impl Strategy<Value = YangModule> {
         (
