@@ -116,13 +116,16 @@ fn test_write_files_creates_output_directory() {
 
 // Submodules for organized tests
 mod backward_compatibility;
+mod client_server_roundtrip;
 mod config_validation;
 mod crud_operations;
 mod error_mapper_test;
 mod error_mapping_test;
+mod handler_registry;
 mod hyper_adapter;
 mod integration;
 mod modular_generation;
+mod modular_server_generation;
 mod notifications;
 mod reqwest_adapter;
 mod restconf_client;

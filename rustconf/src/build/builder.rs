@@ -84,6 +84,64 @@ impl RustconfBuilder {
         self
     }
 
+    /// Enable or disable server-side code generation.
+    ///
+    /// When enabled, generates server handler traits, stub implementations,
+    /// request routing, and validation wrappers from YANG schemas.
+    /// When disabled (default), only client code is generated.
+    ///
+    /// Note: Server generation requires modular output to be enabled.
+    /// If modular output is not already enabled, this method will enable it
+    /// automatically.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// rustconf::RustconfBuilder::new()
+    ///     .yang_file("specs/example.yang")
+    ///     .output_dir(std::env::var("OUT_DIR").unwrap())
+    ///     .enable_server_generation(true)
+    ///     .generate()
+    ///     .expect("Failed to generate RESTCONF bindings");
+    /// ```
+    pub fn enable_server_generation(mut self, enable: bool) -> Self {
+        self.config.enable_server_generation = enable;
+        // Server generation requires modular output
+        if enable {
+            self.config.modular_output = true;
+        }
+        self
+    }
+
+    /// Set the server code output subdirectory.
+    ///
+    /// Server code will be generated in `output_dir/server_output_subdir`.
+    /// Defaults to `"server"` if not specified.
+    ///
+    /// The subdirectory name must be a simple directory name without path
+    /// separators and must not conflict with reserved module names
+    /// (e.g., "types", "operations", "validation").
+    ///
+    /// # Arguments
+    ///
+    /// * `subdir` - The subdirectory name for server code output
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// rustconf::RustconfBuilder::new()
+    ///     .yang_file("specs/example.yang")
+    ///     .output_dir(std::env::var("OUT_DIR").unwrap())
+    ///     .enable_server_generation(true)
+    ///     .server_output_dir("my_server")
+    ///     .generate()
+    ///     .expect("Failed to generate RESTCONF bindings");
+    /// ```
+    pub fn server_output_dir(mut self, subdir: impl Into<String>) -> Self {
+        self.config.server_output_subdir = subdir.into();
+        self
+    }
+
     /// Generate Rust bindings from configured YANG files.
     pub fn generate(self) -> Result<(), BuildError> {
         // Validate configuration
@@ -284,10 +342,10 @@ impl RustconfBuilder {
             });
         }
 
-        // 6. Detect conflicting options
-        // Check if XML is enabled but validation is disabled (potential issue)
-        // This is more of a warning scenario, but we can document it
-        // For now, no strict conflicts to detect
+        // 6. Validate generator config (includes server generation settings)
+        if let Err(msg) = self.config.validate() {
+            return Err(BuildError::ConfigurationError { message: msg });
+        }
 
         Ok(())
     }

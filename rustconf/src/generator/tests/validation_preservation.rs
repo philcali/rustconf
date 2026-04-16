@@ -111,9 +111,12 @@ mod tests {
     fn normalize_code(code: &str) -> String {
         code.lines()
             .filter(|line| {
-                // Remove comments and empty lines
+                // Remove comments, empty lines, and inner attributes (generated file allows)
                 let trimmed = line.trim();
-                !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with("///")
+                !trimmed.is_empty()
+                    && !trimmed.starts_with("//")
+                    && !trimmed.starts_with("///")
+                    && !trimmed.starts_with("#![allow")
             })
             .map(|line| {
                 let trimmed = line.trim();
