@@ -1299,3 +1299,308 @@ module error {
         assert!(result.is_ok());
     }
 }
+
+// Task 14: Server generation builder API tests
+
+#[test]
+fn test_enable_server_generation_sets_flag() {
+    let builder = RustconfBuilder::new().enable_server_generation(true);
+    assert!(builder.config.enable_server_generation);
+    // Server generation requires modular output
+    assert!(builder.config.modular_output);
+}
+
+#[test]
+fn test_enable_server_generation_false() {
+    let builder = RustconfBuilder::new().enable_server_generation(false);
+    assert!(!builder.config.enable_server_generation);
+}
+
+#[test]
+fn test_enable_server_generation_enables_modular_output() {
+    // Even if modular_output was not explicitly set, enabling server generation
+    // should automatically enable it
+    let builder = RustconfBuilder::new().enable_server_generation(true);
+    assert!(builder.config.modular_output);
+}
+
+#[test]
+fn test_server_output_dir_sets_subdir() {
+    let builder = RustconfBuilder::new().server_output_dir("my_server");
+    assert_eq!(builder.config.server_output_subdir, "my_server");
+}
+
+#[test]
+fn test_server_output_dir_default() {
+    let builder = RustconfBuilder::new();
+    assert_eq!(builder.config.server_output_subdir, "server");
+}
+
+#[test]
+fn test_server_generation_validates_empty_subdir() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+    container data { leaf value { type string; } }
+}
+"#,
+    )
+    .unwrap();
+
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(temp_dir.path().join("output"))
+        .enable_server_generation(true)
+        .server_output_dir("");
+
+    let result = builder.generate();
+    assert!(result.is_err());
+    match result {
+        Err(BuildError::ConfigurationError { message }) => {
+            assert!(message.contains("server_output_subdir cannot be empty"));
+        }
+        _ => panic!("Expected ConfigurationError for empty server output dir"),
+    }
+}
+
+#[test]
+fn test_server_generation_validates_invalid_subdir_chars() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+    container data { leaf value { type string; } }
+}
+"#,
+    )
+    .unwrap();
+
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(temp_dir.path().join("output"))
+        .enable_server_generation(true)
+        .server_output_dir("invalid/path");
+
+    let result = builder.generate();
+    assert!(result.is_err());
+    match result {
+        Err(BuildError::ConfigurationError { message }) => {
+            assert!(message.contains("invalid path characters"));
+        }
+        _ => panic!("Expected ConfigurationError for invalid path chars in server output dir"),
+    }
+}
+
+#[test]
+fn test_server_generation_validates_reserved_subdir_names() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+    container data { leaf value { type string; } }
+}
+"#,
+    )
+    .unwrap();
+
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(temp_dir.path().join("output"))
+        .enable_server_generation(true)
+        .server_output_dir("types");
+
+    let result = builder.generate();
+    assert!(result.is_err());
+    match result {
+        Err(BuildError::ConfigurationError { message }) => {
+            assert!(message.contains("conflicts with reserved module names"));
+        }
+        _ => panic!("Expected ConfigurationError for reserved server output dir name"),
+    }
+}
+
+#[test]
+fn test_server_generation_end_to_end() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+
+    container settings {
+        leaf name {
+            type string;
+        }
+        leaf enabled {
+            type boolean;
+        }
+    }
+
+    rpc restart {
+        input {
+            leaf delay {
+                type uint32;
+            }
+        }
+        output {
+            leaf success {
+                type boolean;
+            }
+        }
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    let output_dir = temp_dir.path().join("output");
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(&output_dir)
+        .enable_server_generation(true)
+        .enable_validation(true);
+
+    let result = builder.generate();
+    assert!(
+        result.is_ok(),
+        "Server generation failed: {:?}",
+        result.err()
+    );
+
+    // Verify server directory was created
+    let server_dir = output_dir.join("server");
+    assert!(server_dir.exists(), "Server directory should be created");
+
+    // Verify server files were generated
+    assert!(
+        server_dir.join("mod.rs").exists(),
+        "server/mod.rs should exist"
+    );
+    assert!(
+        server_dir.join("handlers.rs").exists(),
+        "server/handlers.rs should exist"
+    );
+    assert!(
+        server_dir.join("stubs.rs").exists(),
+        "server/stubs.rs should exist"
+    );
+    assert!(
+        server_dir.join("router.rs").exists(),
+        "server/router.rs should exist"
+    );
+
+    // Verify mod.rs includes server module declaration
+    let mod_content = fs::read_to_string(output_dir.join("mod.rs")).unwrap();
+    assert!(
+        mod_content.contains("pub mod server"),
+        "mod.rs should declare server module"
+    );
+}
+
+#[test]
+fn test_server_generation_with_custom_output_dir() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+    container data { leaf value { type string; } }
+}
+"#,
+    )
+    .unwrap();
+
+    let output_dir = temp_dir.path().join("output");
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(&output_dir)
+        .enable_server_generation(true)
+        .server_output_dir("my_server");
+
+    let result = builder.generate();
+    assert!(
+        result.is_ok(),
+        "Server generation failed: {:?}",
+        result.err()
+    );
+
+    // Verify custom server directory was created
+    let server_dir = output_dir.join("my_server");
+    assert!(
+        server_dir.exists(),
+        "Custom server directory should be created"
+    );
+    assert!(
+        server_dir.join("mod.rs").exists(),
+        "my_server/mod.rs should exist"
+    );
+}
+
+#[test]
+fn test_builder_chaining_with_server_options() {
+    let builder = RustconfBuilder::new()
+        .yang_file("test.yang")
+        .output_dir("/tmp/output")
+        .enable_validation(true)
+        .enable_server_generation(true)
+        .server_output_dir("srv")
+        .module_name("my_module");
+
+    assert!(builder.config.enable_server_generation);
+    assert!(builder.config.modular_output);
+    assert_eq!(builder.config.server_output_subdir, "srv");
+    assert!(builder.config.enable_validation);
+    assert_eq!(builder.config.module_name, "my_module");
+}
+
+#[test]
+fn test_server_generation_disabled_no_server_files() {
+    let temp_dir = TempDir::new().unwrap();
+    let yang_file = temp_dir.path().join("test.yang");
+    fs::write(
+        &yang_file,
+        r#"
+module test {
+    namespace "http://example.com/test";
+    prefix test;
+    container data { leaf value { type string; } }
+}
+"#,
+    )
+    .unwrap();
+
+    let output_dir = temp_dir.path().join("output");
+    let builder = RustconfBuilder::new()
+        .yang_file(&yang_file)
+        .output_dir(&output_dir)
+        .enable_server_generation(false);
+
+    let result = builder.generate();
+    assert!(result.is_ok(), "Generation failed: {:?}", result.err());
+
+    // Server directory should NOT be created when server generation is disabled
+    let server_dir = output_dir.join("server");
+    assert!(
+        !server_dir.exists(),
+        "Server directory should not exist when server generation is disabled"
+    );
+}

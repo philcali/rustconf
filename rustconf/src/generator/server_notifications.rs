@@ -35,7 +35,7 @@ impl<'a> ServerNotificationGenerator<'a> {
         output.push_str("use std::sync::Arc;\n");
         output.push_str("use tokio::sync::RwLock;\n");
         output.push_str("use serde::{Deserialize, Serialize};\n");
-        output.push_str("use super::types::*;\n");
+        output.push_str("use super::super::types::*;\n");
         output.push('\n');
 
         // Generate notification data structures (reuse from types)

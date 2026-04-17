@@ -229,25 +229,25 @@ This plan implements server-side code generation for rustconf, enabling develope
     - Verify end-to-end notification generation from YANG files
     - Test that generated notification code compiles and works
 
-- [ ] 11. Implement handler registry
-  - [ ] 11.1 Create HandlerRegistry type
+- [x] 11. Implement handler registry
+  - [x] 11.1 Create HandlerRegistry type
     - Store path patterns mapped to handler methods
     - Support registration and lookup
     - Return default not-implemented handler for unregistered paths
     - _Requirements: 11.1, 11.2, 11.3, 11.5_
   
-  - [ ]* 11.2 Write property test for registry lookup
+  - [x] 11.2 Write property test for registry lookup
     - **Property 20: Handler Registry Lookup**
     - **Validates: Requirements 11.2, 11.3**
 
-- [ ] 12. Implement modular server code organization
-  - [ ] 12.1 Create server/mod.rs generator
+- [x] 12. Implement modular server code organization
+  - [x] 12.1 Create server/mod.rs generator
     - Generate module declarations for handlers, stubs, router, transport
     - Add re-exports for commonly used types
     - Include appropriate use statements
     - _Requirements: 12.1, 12.2, 12.5_
   
-  - [ ] 12.2 Update main generator to create server subdirectory
+  - [x] 12.2 Update main generator to create server subdirectory
     - Create server/ directory in output path
     - Generate handlers.rs, stubs.rs, router.rs files
     - Wire server module into main mod.rs
@@ -257,8 +257,8 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 21: Module Compilation**
     - **Validates: Requirements 12.5**
 
-- [ ] 13. Ensure client-server type compatibility
-  - [ ] 13.1 Verify shared type generation
+- [x] 13. Ensure client-server type compatibility
+  - [x] 13.1 Verify shared type generation
     - Ensure types.rs is identical for client and server
     - Use same serde attributes on both sides
     - Verify validation.rs is shared
@@ -268,52 +268,52 @@ This plan implements server-side code generation for rustconf, enabling develope
     - **Property 22: Client-Server Type Compatibility**
     - **Validates: Requirements 13.1, 13.4, 13.5**
   
-  - [ ]* 13.3 Write integration test for client-server round-trip
+  - [x] 13.3 Write integration test for client-server round-trip
     - Generate both client and server from same YANG
     - Serialize request on client, deserialize on server
     - Serialize response on server, deserialize on client
     - Verify data equivalence
     - _Requirements: 13.2, 13.3_
 
-- [ ] 14. Add server generation to RustconfBuilder API
-  - [ ] 14.1 Add enable_server_generation() builder method
+- [x] 14. Add server generation to RustconfBuilder API
+  - [x] 14.1 Add enable_server_generation() builder method
     - Add method to RustconfBuilder
     - Set enable_server_generation flag in config
     - Update documentation
     - _Requirements: 10.1_
   
-  - [ ] 14.2 Add server_output_dir() builder method
+  - [x] 14.2 Add server_output_dir() builder method
     - Add method to configure server output location
     - Validate path is valid
     - Update documentation
     - _Requirements: 10.2_
   
-  - [ ] 14.3 Update generate() to invoke server generation
+  - [x] 14.3 Update generate() to invoke server generation
     - Check enable_server_generation flag
     - Call server generator if enabled
     - Write server files to configured directory
     - _Requirements: 10.1_
 
-- [ ] 15. Create example demonstrating server generation
-  - [ ] 15.1 Create examples/server-basic directory
+- [x] 15. Create example demonstrating server generation
+  - [x] 15.1 Create examples/server-basic directory
     - Set up Cargo.toml with rustconf and rustconf-runtime dependencies
     - Create build.rs with server generation enabled
     - Add YANG schema file
     - _Requirements: All_
   
-  - [ ] 15.2 Implement example using stub handlers
+  - [x] 15.2 Implement example using stub handlers
     - Show how to use generated stub handlers as-is
     - Demonstrate call logging for testing
     - Show request/response flow
     - _Requirements: 2.1, 2.2, 2.4_
   
-  - [ ] 15.3 Implement example with custom handler
+  - [x] 15.3 Implement example with custom handler
     - Show how to override specific handler methods
     - Demonstrate mixing stub and custom implementations
     - Show production usage pattern
     - _Requirements: 3.5_
 
-- [ ] 16. Final checkpoint - Ensure all tests pass and examples run
+- [x] 16. Final checkpoint - Ensure all tests pass and examples run
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

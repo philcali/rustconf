@@ -396,14 +396,13 @@ impl YangParser {
         typedefs: &[TypeDef],
     ) -> Result<(), ParseError> {
         match type_spec {
-            TypeSpec::TypedefRef { name } => {
+            TypeSpec::TypedefRef { name }
                 // Check if the typedef is defined
-                if !typedefs.iter().any(|t| t.name == *name) {
+                if !typedefs.iter().any(|t| t.name == *name) => {
                     return Err(ParseError::SemanticError {
                         message: format!("Undefined typedef reference: {}", name),
                     });
                 }
-            }
             TypeSpec::Union { types } => {
                 // Validate each type in the union
                 for t in types {
@@ -444,12 +443,10 @@ impl YangParser {
     /// Validate leafref paths in a TypeSpec.
     fn validate_typespec_leafref_paths(type_spec: &TypeSpec) -> Result<(), ParseError> {
         match type_spec {
-            TypeSpec::LeafRef { path } => {
-                if path.is_empty() {
-                    return Err(ParseError::SemanticError {
-                        message: "Leafref path cannot be empty".to_string(),
-                    });
-                }
+            TypeSpec::LeafRef { path } if path.is_empty() => {
+                return Err(ParseError::SemanticError {
+                    message: "Leafref path cannot be empty".to_string(),
+                });
             }
             TypeSpec::Union { types } => {
                 for t in types {

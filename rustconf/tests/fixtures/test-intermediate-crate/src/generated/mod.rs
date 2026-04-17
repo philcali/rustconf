@@ -4,7 +4,9 @@
 // Source YANG module: test-device
 // Namespace: http://example.com/test-device
 // Prefix: td
-// Generated at: 2026-02-28 21:10:48 UTC
+// Generated at: 2026-04-16 22:14:34 UTC
+
+#![allow(unused_imports, unused_variables, dead_code, clippy::module_inception)]
 
 pub mod types;
 pub mod operations;
@@ -13,7 +15,6 @@ pub mod validation;
 pub use types::*;
 pub use operations::*;
 
-#[warn(unused_imports)]
 pub use rustconf_runtime::{
     RestconfClient,
     HttpTransport,
