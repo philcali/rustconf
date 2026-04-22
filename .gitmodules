@@ -1,0 +1,4 @@
+[submodule "tests/integration/yang/juniper-yang"]
+	path = tests/integration/yang/juniper-yang
+	url = https://github.com/Juniper/yang.git
+	shallow = true
