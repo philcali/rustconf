@@ -171,6 +171,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 See `examples/intermediate-client/` for a complete working example.
 
+## Integration Testing
+
+rustconf includes an integration test harness that validates generated code against live RESTCONF emulators (Juniper cRPD, Netopeer2). See [tests/integration/README.md](tests/integration/README.md) for setup, configuration, and usage details.
+
 ## Development Status
 
 This project is currently under active development. See the implementation plan in `.kiro/specs/rustconf/tasks.md` for progress.

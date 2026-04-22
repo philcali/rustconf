@@ -1,0 +1,36 @@
+{
+  "resource_path": "/data/ietf-system:system",
+  "data": {
+    "ietf-system:system": {
+      "hostname": "rustconf-test-device",
+      "contact": "Integration Test Harness",
+      "location": "Lab",
+      "ntp": {
+        "enabled": true,
+        "server": [
+          {
+            "name": "ntp1.example.com",
+            "udp": {
+              "address": "198.51.100.1",
+              "port": 123
+            },
+            "prefer": true
+          }
+        ]
+      },
+      "dns-resolver": {
+        "search": [
+          "example.com"
+        ],
+        "server": [
+          {
+            "name": "dns1",
+            "udp-and-tcp": {
+              "address": "198.51.100.53"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

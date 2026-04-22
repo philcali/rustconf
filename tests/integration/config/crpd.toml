@@ -1,0 +1,31 @@
+# Reference configuration for Juniper cRPD emulator.
+#
+# These values match the defaults in JunosCrpdConfig. Override individual
+# fields here or via environment variables (env vars take precedence).
+#
+# Environment variable mapping:
+#   RUSTCONF_EMULATOR_TYPE      -> emulator.type
+#   RUSTCONF_CONTAINER_IMAGE    -> emulator.image
+#   RUSTCONF_RESTCONF_PORT      -> emulator.restconf_port
+#   RUSTCONF_USERNAME           -> emulator.username
+#   RUSTCONF_PASSWORD           -> emulator.password
+#   RUSTCONF_SKIP_TLS_VERIFY    -> emulator.skip_tls_verify
+#   RUSTCONF_BASE_URL           -> emulator.base_url
+#   RUSTCONF_HEALTH_TIMEOUT_SECS -> timeouts.health_check_secs
+#   RUSTCONF_TEST_TIMEOUT_SECS  -> timeouts.test_timeout_secs
+
+[emulator]
+type = "crpd"
+image = "crpd:23.4R1.10"
+restconf_port = 3000
+username = "root"
+password = "Juniper1"
+base_path = "/restconf"
+uses_tls = true
+skip_tls_verify = true
+health_check_path = "/restconf"
+yang_model_dir = "yang/juniper"
+
+[timeouts]
+health_check_secs = 120
+test_timeout_secs = 30

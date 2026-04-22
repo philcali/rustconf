@@ -1,0 +1,28 @@
+{
+  "resource_path": "/data/ietf-interfaces:interfaces",
+  "data": {
+    "ietf-interfaces:interfaces": {
+      "interface": [
+        {
+          "name": "ge-0/0/0",
+          "type": "iana-if-type:ethernetCsmacd",
+          "enabled": true,
+          "ietf-ip:ipv4": {
+            "address": [
+              {
+                "ip": "192.0.2.1",
+                "prefix-length": 24
+              }
+            ]
+          }
+        },
+        {
+          "name": "ge-0/0/1",
+          "type": "iana-if-type:ethernetCsmacd",
+          "enabled": false,
+          "description": "Test interface for integration testing"
+        }
+      ]
+    }
+  }
+}
