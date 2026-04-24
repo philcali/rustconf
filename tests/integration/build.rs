@@ -146,6 +146,118 @@ fn resolve_yang_dirs() -> Option<(Vec<PathBuf>, Vec<PathBuf>)> {
 }
 
 // ---------------------------------------------------------------------------
+// Post-generation validation
+// ---------------------------------------------------------------------------
+
+/// Check that a generated module directory contains self-consistent Rust code.
+///
+/// Scans `operations.rs` for type references (struct field types, function
+/// parameters) and verifies they are either primitive/well-known types or
+/// defined in `types.rs` / `validation.rs`. Returns `None` if the module
+/// looks good, or `Some(reason)` describing the first problem found.
+///
+/// This catches cases where the code generator emits references to types
+/// it never defined (e.g. YANG `choice` nodes in RPC input/output that
+/// produce struct fields referencing non-existent types).
+fn check_generated_module(module_dir: &Path) -> Option<String> {
+    let ops_path = module_dir.join("operations.rs");
+    if !ops_path.exists() {
+        // No operations file — nothing to validate.
+        return None;
+    }
+
+    let ops_content = fs::read_to_string(&ops_path).ok()?;
+
+    // Collect type names defined in types.rs and validation.rs.
+    let mut defined_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Always-available types (Rust primitives, std, serde, runtime).
+    for t in &[
+        "bool",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "f32",
+        "f64",
+        "String",
+        "Vec",
+        "Option",
+        "Box",
+        "HashMap",
+        "Value",
+        "serde_json",
+    ] {
+        defined_types.insert(t.to_string());
+    }
+
+    // Scan types.rs for `pub type Foo` and `pub struct Foo` and `pub enum Foo`.
+    for filename in &["types.rs", "validation.rs"] {
+        let path = module_dir.join(filename);
+        if let Ok(content) = fs::read_to_string(&path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                for prefix in &["pub type ", "pub struct ", "pub enum "] {
+                    if let Some(rest) = trimmed.strip_prefix(prefix) {
+                        // Extract the type name (first word, strip generics).
+                        if let Some(name) = rest
+                            .split(|c: char| !c.is_alphanumeric() && c != '_')
+                            .next()
+                        {
+                            if !name.is_empty() {
+                                defined_types.insert(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Scan operations.rs for field type references that might be undefined.
+    // Look for patterns like `: Option<TypeName>` or `: TypeName,` in struct fields.
+    for line in ops_content.lines() {
+        let trimmed = line.trim();
+
+        // Match struct field patterns: `pub field_name: Type` or `pub field_name: Option<Type>`
+        if trimmed.starts_with("pub ") && trimmed.contains(':') {
+            if let Some(type_part) = trimmed.split(':').nth(1) {
+                let type_str = type_part.trim().trim_end_matches(',');
+
+                // Extract the outermost type name, unwrapping Option<> and Vec<>.
+                let inner = type_str
+                    .strip_prefix("Option<")
+                    .and_then(|s| s.strip_suffix('>'))
+                    .or_else(|| {
+                        type_str
+                            .strip_prefix("Vec<")
+                            .and_then(|s| s.strip_suffix('>'))
+                    })
+                    .unwrap_or(type_str);
+
+                let type_name: String = inner
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+
+                if !type_name.is_empty() && !defined_types.contains(&type_name) {
+                    return Some(format!(
+                        "operations.rs references undefined type '{}'",
+                        type_name
+                    ));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -208,11 +320,30 @@ fn main() {
 
         match builder.generate() {
             Ok(()) => {
-                println!(
-                    "cargo:warning=Generated code for YANG module: {}",
-                    yang_file.display()
-                );
-                generated_modules.push(mod_name);
+                // Verify the generated code is self-consistent before including
+                // the module. Some YANG models (e.g. ietf-netconf) parse and
+                // generate successfully but produce code that references types
+                // not defined in the generated output (e.g. YANG `choice` nodes
+                // in RPC inputs). Catch these at build time rather than letting
+                // them break compilation.
+                if let Some(reason) = check_generated_module(&module_output) {
+                    println!(
+                        "cargo:warning=Skipping YANG module {} \
+                         (generated code validation failed: {})",
+                        yang_file.display(),
+                        reason
+                    );
+                    // Clean up the broken generated directory so it doesn't
+                    // linger and cause confusion.
+                    let _ = fs::remove_dir_all(&module_output);
+                    had_errors = true;
+                } else {
+                    println!(
+                        "cargo:warning=Generated code for YANG module: {}",
+                        yang_file.display()
+                    );
+                    generated_modules.push(mod_name);
+                }
             }
             Err(e) => {
                 println!(

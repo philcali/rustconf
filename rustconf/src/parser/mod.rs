@@ -397,8 +397,8 @@ impl YangParser {
     ) -> Result<(), ParseError> {
         match type_spec {
             TypeSpec::TypedefRef { name }
-                // Check if the typedef is defined
-                if !typedefs.iter().any(|t| t.name == *name) => {
+                // Skip validation for prefixed refs (prefix:name) — they refer to imported modules
+                if !name.contains(':') && !typedefs.iter().any(|t| t.name == *name) => {
                     return Err(ParseError::SemanticError {
                         message: format!("Undefined typedef reference: {}", name),
                     });
@@ -869,17 +869,79 @@ impl ModuleParser {
     fn parse_identifier_or_keyword(&mut self) -> Result<String, ParseError> {
         match self.advance() {
             Token::Identifier(id) => Ok(id),
-            // Allow YANG keywords to be used as identifiers
+            // Allow ALL YANG keywords to be used as identifiers
+            Token::Module => Ok("module".to_string()),
+            Token::Submodule => Ok("submodule".to_string()),
+            Token::Namespace => Ok("namespace".to_string()),
+            Token::Prefix => Ok("prefix".to_string()),
+            Token::Import => Ok("import".to_string()),
+            Token::Include => Ok("include".to_string()),
+            Token::Revision => Ok("revision".to_string()),
+            Token::YangVersion => Ok("yang-version".to_string()),
+            Token::Organization => Ok("organization".to_string()),
+            Token::Contact => Ok("contact".to_string()),
             Token::Description => Ok("description".to_string()),
-            Token::Type => Ok("type".to_string()),
-            Token::Config => Ok("config".to_string()),
-            Token::Status => Ok("status".to_string()),
             Token::Reference => Ok("reference".to_string()),
+            Token::Container => Ok("container".to_string()),
+            Token::List => Ok("list".to_string()),
+            Token::Leaf => Ok("leaf".to_string()),
+            Token::LeafList => Ok("leaf-list".to_string()),
+            Token::Choice => Ok("choice".to_string()),
+            Token::Case => Ok("case".to_string()),
+            Token::Grouping => Ok("grouping".to_string()),
+            Token::Uses => Ok("uses".to_string()),
+            Token::Typedef => Ok("typedef".to_string()),
+            Token::Type => Ok("type".to_string()),
+            Token::Int8 => Ok("int8".to_string()),
+            Token::Int16 => Ok("int16".to_string()),
+            Token::Int32 => Ok("int32".to_string()),
+            Token::Int64 => Ok("int64".to_string()),
+            Token::Uint8 => Ok("uint8".to_string()),
+            Token::Uint16 => Ok("uint16".to_string()),
+            Token::Uint32 => Ok("uint32".to_string()),
+            Token::Uint64 => Ok("uint64".to_string()),
+            Token::String => Ok("string".to_string()),
+            Token::Boolean => Ok("boolean".to_string()),
+            Token::Enumeration => Ok("enumeration".to_string()),
+            Token::Enum => Ok("enum".to_string()),
+            Token::Binary => Ok("binary".to_string()),
+            Token::Bits => Ok("bits".to_string()),
+            Token::Bit => Ok("bit".to_string()),
+            Token::Union => Ok("union".to_string()),
+            Token::LeafRef => Ok("leafref".to_string()),
+            Token::IdentityRef => Ok("identityref".to_string()),
+            Token::Empty => Ok("empty".to_string()),
+            Token::InstanceIdentifier => Ok("instance-identifier".to_string()),
+            Token::Config => Ok("config".to_string()),
+            Token::Mandatory => Ok("mandatory".to_string()),
             Token::Default => Ok("default".to_string()),
+            Token::Status => Ok("status".to_string()),
+            Token::Units => Ok("units".to_string()),
+            Token::Range => Ok("range".to_string()),
+            Token::Length => Ok("length".to_string()),
+            Token::Pattern => Ok("pattern".to_string()),
+            Token::Key => Ok("key".to_string()),
+            Token::Unique => Ok("unique".to_string()),
+            Token::MinElements => Ok("min-elements".to_string()),
+            Token::MaxElements => Ok("max-elements".to_string()),
+            Token::OrderedBy => Ok("ordered-by".to_string()),
+            Token::Must => Ok("must".to_string()),
+            Token::When => Ok("when".to_string()),
+            Token::Presence => Ok("presence".to_string()),
+            Token::IfFeature => Ok("if-feature".to_string()),
+            Token::Feature => Ok("feature".to_string()),
+            Token::Rpc => Ok("rpc".to_string()),
             Token::Input => Ok("input".to_string()),
             Token::Output => Ok("output".to_string()),
-            Token::Action => Ok("action".to_string()),
             Token::Notification => Ok("notification".to_string()),
+            Token::Action => Ok("action".to_string()),
+            Token::Extension => Ok("extension".to_string()),
+            Token::Argument => Ok("argument".to_string()),
+            Token::Augment => Ok("augment".to_string()),
+            Token::Deviation => Ok("deviation".to_string()),
+            Token::Deviate => Ok("deviate".to_string()),
+            Token::Identity => Ok("identity".to_string()),
+            Token::Base => Ok("base".to_string()),
             token => Err(self.error(format!("Expected identifier, found {:?}", token))),
         }
     }
@@ -1300,12 +1362,26 @@ impl ModuleParser {
                     path: String::new(),
                 }
             }
+            Token::IdentityRef => {
+                self.advance();
+                TypeSpec::IdentityRef {
+                    base: String::new(),
+                }
+            }
             Token::Identifier(_) => {
                 // Could be a typedef reference or other type
                 // Store as TypedefRef for later resolution
-                let name = match self.advance() {
+                let first = match self.advance() {
                     Token::Identifier(id) => id,
                     _ => unreachable!(),
+                };
+                // Check for prefix:name pattern (e.g., junos-conf-interfaces:foo)
+                let name = if self.peek() == &Token::Colon {
+                    self.advance(); // consume colon
+                    let second = self.parse_identifier_or_keyword()?;
+                    format!("{}:{}", first, second)
+                } else {
+                    first
                 };
                 TypeSpec::TypedefRef { name }
             }
@@ -1321,6 +1397,15 @@ impl ModuleParser {
         } else {
             // Expect semicolon after simple type (no body)
             self.expect(Token::Semicolon)?;
+        }
+
+        // Validate that identityref has a base statement
+        if let TypeSpec::IdentityRef { ref base } = type_spec {
+            if base.is_empty() {
+                return Err(
+                    self.error("Missing required 'base' statement in identityref type".to_string())
+                );
+            }
         }
 
         Ok(type_spec)
@@ -1396,11 +1481,28 @@ impl ModuleParser {
                         type_spec = TypeSpec::LeafRef { path };
                     }
                 }
+                Token::Base => {
+                    self.advance();
+                    let base_name = self.parse_identifier_or_keyword()?;
+                    // Handle prefixed base (e.g., base ianaift:iana-interface-type)
+                    let base_name = if self.peek() == &Token::Colon {
+                        self.advance();
+                        let suffix = self.parse_identifier_or_keyword()?;
+                        format!("{}:{}", base_name, suffix)
+                    } else {
+                        base_name
+                    };
+                    self.expect(Token::Semicolon)?;
+                    if let TypeSpec::IdentityRef { ref mut base, .. } = type_spec {
+                        *base = base_name;
+                    }
+                }
                 _ => {
                     self.skip_statement()?;
                 }
             }
         }
+
         Ok(type_spec)
     }
 
@@ -1408,16 +1510,109 @@ impl ModuleParser {
     fn parse_range_constraint(&mut self) -> Result<RangeConstraint, ParseError> {
         self.expect(Token::Range)?;
 
-        let range_str = match self.advance() {
-            Token::StringLiteral(s) | Token::Identifier(s) => s,
-            token => return Err(self.error(format!("Expected range value, found {:?}", token))),
-        };
+        // Range values may appear as quoted strings ("1..10"), unquoted
+        // identifiers (min..max), or bare numbers (0..4294967295).
+        let range_str = self.parse_constraint_value("range")?;
 
         self.expect(Token::Semicolon)?;
 
         // Parse range string: "1..10 | 20..30"
         let ranges = self.parse_range_string(&range_str)?;
         Ok(RangeConstraint::new(ranges))
+    }
+
+    /// Parse a constraint value (range or length) that may be expressed as:
+    /// - A quoted string: `"1..253"` or `"min..max"`
+    /// - An unquoted identifier: `min` or `max`
+    /// - Bare numeric tokens: `1..253` (tokenized as Number, DoubleDot, Number)
+    /// - A single bare number: `1`
+    ///
+    /// Reconstructs the full constraint string from whatever token sequence
+    /// the lexer produced.
+    fn parse_constraint_value(&mut self, context: &str) -> Result<String, ParseError> {
+        match self.peek() {
+            Token::StringLiteral(_) => match self.advance() {
+                Token::StringLiteral(s) => Ok(s),
+                _ => unreachable!(),
+            },
+            Token::Identifier(_) | Token::Number(_) => {
+                // Consume tokens until we hit a semicolon, reconstructing the
+                // constraint string. Valid tokens in an unquoted constraint:
+                // Number, Identifier (min/max), DoubleDot (..), Pipe (|).
+                let mut parts = Vec::new();
+                loop {
+                    match self.peek() {
+                        Token::Number(_) => match self.advance() {
+                            Token::Number(n) => {
+                                // Use the raw string representation to preserve
+                                // values that exceed i64 range (e.g. u64::MAX).
+                                // Since Token::Number stores i64, large unsigned
+                                // values may have been truncated by the lexer.
+                                // We format them back; the range/length parsers
+                                // handle overflow gracefully.
+                                parts.push(n.to_string());
+                            }
+                            _ => unreachable!(),
+                        },
+                        Token::Identifier(_) => match self.advance() {
+                            Token::Identifier(id) => parts.push(id),
+                            _ => unreachable!(),
+                        },
+                        Token::DoubleDot => {
+                            self.advance();
+                            parts.push("..".to_string());
+                        }
+                        Token::Pipe => {
+                            self.advance();
+                            parts.push("|".to_string());
+                        }
+                        // Any keyword that could be min/max
+                        tok if tok.is_keyword() => {
+                            let kw = self.parse_identifier_or_keyword()?;
+                            parts.push(kw);
+                        }
+                        _ => break,
+                    }
+                }
+                if parts.is_empty() {
+                    let token = self.advance();
+                    Err(self.error(format!("Expected {} value, found {:?}", context, token)))
+                } else {
+                    Ok(parts.join(""))
+                }
+            }
+            _ => {
+                let token = self.advance();
+                Err(self.error(format!("Expected {} value, found {:?}", context, token)))
+            }
+        }
+    }
+
+    /// Parse a single range value, handling `min` and `max` keywords.
+    /// Maps `"min"` → `i64::MIN`, `"max"` → `i64::MAX`, otherwise parses as `i64`.
+    /// Falls back to `u64` parsing and saturates to `i64::MAX` for values like
+    /// `18446744073709551615` (u64::MAX) that appear in YANG uint64 range constraints.
+    fn parse_range_value(&self, s: &str) -> Result<i64, ParseError> {
+        let trimmed = s.trim();
+        match trimmed {
+            "min" => Ok(i64::MIN),
+            "max" => Ok(i64::MAX),
+            _ => trimmed
+                .parse::<i64>()
+                .or_else(|_| {
+                    // Values exceeding i64::MAX (e.g. u64::MAX for uint64 ranges)
+                    // are clamped to i64::MAX. This is safe because the semantic
+                    // validator checks that range values fit the actual YANG type.
+                    trimmed.parse::<u64>().map(|v| {
+                        if v > i64::MAX as u64 {
+                            i64::MAX
+                        } else {
+                            v as i64
+                        }
+                    })
+                })
+                .map_err(|_| self.error(format!("Invalid range value: {}", trimmed))),
+        }
     }
 
     /// Parse range string into Range objects
@@ -1429,19 +1624,13 @@ impl ModuleParser {
             if part.contains("..") {
                 let parts: Vec<&str> = part.split("..").collect();
                 if parts.len() == 2 {
-                    let min = parts[0].trim().parse::<i64>().map_err(|_| {
-                        self.error(format!("Invalid range min value: {}", parts[0]))
-                    })?;
-                    let max = parts[1].trim().parse::<i64>().map_err(|_| {
-                        self.error(format!("Invalid range max value: {}", parts[1]))
-                    })?;
+                    let min = self.parse_range_value(parts[0])?;
+                    let max = self.parse_range_value(parts[1])?;
                     ranges.push(Range::new(min, max));
                 }
             } else {
                 // Single value range
-                let value = part
-                    .parse::<i64>()
-                    .map_err(|_| self.error(format!("Invalid range value: {}", part)))?;
+                let value = self.parse_range_value(part)?;
                 ranges.push(Range::new(value, value));
             }
         }
@@ -1453,16 +1642,28 @@ impl ModuleParser {
     fn parse_length_constraint(&mut self) -> Result<LengthConstraint, ParseError> {
         self.expect(Token::Length)?;
 
-        let length_str = match self.advance() {
-            Token::StringLiteral(s) | Token::Identifier(s) => s,
-            token => return Err(self.error(format!("Expected length value, found {:?}", token))),
-        };
+        // Length values may appear as quoted strings ("1..253"), unquoted
+        // identifiers (min..max), or bare numbers (1..253).
+        let length_str = self.parse_constraint_value("length")?;
 
         self.expect(Token::Semicolon)?;
 
         // Parse length string: "1..10 | 20..30"
         let lengths = self.parse_length_string(&length_str)?;
         Ok(LengthConstraint::new(lengths))
+    }
+
+    /// Parse a single length value, handling `min` and `max` keywords.
+    /// Maps `"min"` → `0`, `"max"` → `u64::MAX`, otherwise parses as `u64`.
+    fn parse_length_value(&self, s: &str) -> Result<u64, ParseError> {
+        let trimmed = s.trim();
+        match trimmed {
+            "min" => Ok(0),
+            "max" => Ok(u64::MAX),
+            _ => trimmed
+                .parse::<u64>()
+                .map_err(|_| self.error(format!("Invalid length value: {}", trimmed))),
+        }
     }
 
     /// Parse length string into LengthRange objects
@@ -1474,19 +1675,13 @@ impl ModuleParser {
             if part.contains("..") {
                 let parts: Vec<&str> = part.split("..").collect();
                 if parts.len() == 2 {
-                    let min = parts[0].trim().parse::<u64>().map_err(|_| {
-                        self.error(format!("Invalid length min value: {}", parts[0]))
-                    })?;
-                    let max = parts[1].trim().parse::<u64>().map_err(|_| {
-                        self.error(format!("Invalid length max value: {}", parts[1]))
-                    })?;
+                    let min = self.parse_length_value(parts[0])?;
+                    let max = self.parse_length_value(parts[1])?;
                     lengths.push(LengthRange::new(min, max));
                 }
             } else {
                 // Single value length
-                let value = part
-                    .parse::<u64>()
-                    .map_err(|_| self.error(format!("Invalid length value: {}", part)))?;
+                let value = self.parse_length_value(part)?;
                 lengths.push(LengthRange::new(value, value));
             }
         }
@@ -1509,9 +1704,24 @@ impl ModuleParser {
     fn parse_enum_value(&mut self) -> Result<EnumValue, ParseError> {
         self.expect(Token::Enum)?;
 
-        let name = match self.advance() {
-            Token::Identifier(id) => id,
-            token => return Err(self.error(format!("Expected enum name, found {:?}", token))),
+        let name = match self.peek() {
+            Token::StringLiteral(_) => match self.advance() {
+                Token::StringLiteral(s) => s,
+                _ => unreachable!(),
+            },
+            Token::Identifier(_) => match self.advance() {
+                Token::Identifier(id) => id,
+                _ => unreachable!(),
+            },
+            Token::Star => {
+                self.advance();
+                "*".to_string()
+            }
+            tok if tok.is_keyword() => self.parse_identifier_or_keyword()?,
+            _ => {
+                let token = self.advance();
+                return Err(self.error(format!("Expected enum name, found {:?}", token)));
+            }
         };
 
         let mut value = None;
@@ -1524,13 +1734,28 @@ impl ModuleParser {
                 match self.peek() {
                     Token::Identifier(ref id) if id == "value" => {
                         self.advance();
-                        value = Some(match self.advance() {
-                            Token::Number(n) => n as i32,
-                            token => {
+                        value = Some(match self.peek() {
+                            Token::Number(_) => match self.advance() {
+                                Token::Number(n) => n as i32,
+                                _ => unreachable!(),
+                            },
+                            Token::StringLiteral(_) => match self.advance() {
+                                Token::StringLiteral(s) => {
+                                    s.trim().parse::<i32>().map_err(|_| {
+                                        self.error(format!(
+                                        "Expected enum value number, found non-numeric string {:?}",
+                                        s
+                                    ))
+                                    })?
+                                }
+                                _ => unreachable!(),
+                            },
+                            _ => {
+                                let token = self.advance();
                                 return Err(self.error(format!(
                                     "Expected enum value number, found {:?}",
                                     token
-                                )))
+                                )));
                             }
                         });
                         self.expect(Token::Semicolon)?;
@@ -2025,9 +2250,17 @@ impl ModuleParser {
     fn parse_uses(&mut self) -> Result<Uses, ParseError> {
         self.expect(Token::Uses)?;
 
-        let name = match self.advance() {
+        let first = match self.advance() {
             Token::Identifier(id) => id,
             token => return Err(self.error(format!("Expected grouping name, found {:?}", token))),
+        };
+        // Check for prefix:name pattern (e.g., junos:some-grouping)
+        let name = if self.peek() == &Token::Colon {
+            self.advance(); // consume colon
+            let second = self.parse_identifier_or_keyword()?;
+            format!("{}:{}", first, second)
+        } else {
+            first
         };
 
         let mut description = None;

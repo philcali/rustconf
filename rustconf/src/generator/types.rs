@@ -204,6 +204,7 @@ impl<'a> TypeGenerator<'a> {
                 name: variant_name,
                 data_type,
                 doc_comment: case.description.clone(),
+                serde_attrs: vec![],
             });
         }
 
@@ -515,6 +516,7 @@ impl<'a> TypeGenerator<'a> {
             TypeSpec::Enumeration { .. } => "String", // Will be improved in later tasks
             TypeSpec::Union { .. } => "String",       // Will be improved in later tasks
             TypeSpec::LeafRef { .. } => "String",     // Will be improved in later tasks
+            TypeSpec::IdentityRef { .. } => "String", // Identity references map to String
             TypeSpec::TypedefRef { name } => {
                 // Use the typedef name as the type
                 &crate::generator::naming::to_type_name(name)
