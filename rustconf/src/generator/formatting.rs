@@ -17,6 +17,8 @@ pub struct EnumVariant {
     pub name: String,
     pub data_type: Option<Type>,
     pub doc_comment: Option<String>,
+    /// Per-variant serde attributes (e.g., `rename = "*"` for wildcard enum variants).
+    pub serde_attrs: Vec<String>,
 }
 
 /// Format a token stream into a well-formatted Rust code string.
@@ -309,7 +311,7 @@ pub fn generate_enum_with_serde(
         })
         .collect();
 
-    // Build variants with documentation
+    // Build variants with documentation and per-variant serde attributes
     let variant_defs: Vec<TokenStream> = variants
         .iter()
         .map(|variant| {
@@ -321,9 +323,25 @@ pub fn generate_enum_with_serde(
                 quote! { #variant_ident }
             };
 
+            // Build per-variant serde attributes
+            let variant_serde_attrs: Vec<TokenStream> = variant
+                .serde_attrs
+                .iter()
+                .map(|attr| {
+                    let attr_tokens: TokenStream = attr.parse().unwrap_or_else(|_| quote! {});
+                    quote! { #[serde(#attr_tokens)] }
+                })
+                .collect();
+
             if let Some(ref doc) = variant.doc_comment {
                 quote! {
                     #[doc = #doc]
+                    #(#variant_serde_attrs)*
+                    #variant_def
+                }
+            } else if !variant_serde_attrs.is_empty() {
+                quote! {
+                    #(#variant_serde_attrs)*
                     #variant_def
                 }
             } else {
@@ -578,16 +596,19 @@ mod tests {
                 name: "TcpVariant".to_string(),
                 data_type: Some(parse_quote!(u16)),
                 doc_comment: Some("TCP protocol variant".to_string()),
+                serde_attrs: vec![],
             },
             EnumVariant {
                 name: "UdpVariant".to_string(),
                 data_type: Some(parse_quote!(u16)),
                 doc_comment: Some("UDP protocol variant".to_string()),
+                serde_attrs: vec![],
             },
             EnumVariant {
                 name: "None".to_string(),
                 data_type: None,
                 doc_comment: None,
+                serde_attrs: vec![],
             },
         ];
 
@@ -611,5 +632,42 @@ mod tests {
         assert!(code.contains("None"));
         assert!(code.contains(r#"rename_all = "kebab-case""#));
         assert!(code.contains("#[derive(Debug, Serialize, Deserialize)]"));
+    }
+
+    #[test]
+    fn test_generate_enum_with_per_variant_serde_attrs() {
+        // Test that per-variant serde attributes (e.g., rename = "*") are emitted.
+        // Validates: Requirements 6.2, 6.3
+        let variants = vec![
+            EnumVariant {
+                name: "Star".to_string(),
+                data_type: None,
+                doc_comment: None,
+                serde_attrs: vec![r#"rename = "*""#.to_string()],
+            },
+            EnumVariant {
+                name: "Normal".to_string(),
+                data_type: None,
+                doc_comment: None,
+                serde_attrs: vec![],
+            },
+        ];
+
+        let result = generate_enum_with_serde(
+            "WildcardEnum",
+            variants,
+            vec!["Debug", "Serialize", "Deserialize"],
+            vec![],
+            None,
+        );
+
+        assert!(result.is_ok());
+        let code = result.unwrap();
+
+        assert!(code.contains("pub enum WildcardEnum"));
+        assert!(code.contains("Star"));
+        assert!(code.contains("Normal"));
+        // The Star variant should have a serde rename attribute
+        assert!(code.contains(r#"rename = "*""#));
     }
 }

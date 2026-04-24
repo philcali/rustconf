@@ -89,6 +89,11 @@ pub fn to_pascal_case(identifier: &str) -> String {
         return String::new();
     }
 
+    // Special case: wildcard enum `*` maps to `Star`
+    if identifier == "*" {
+        return "Star".to_string();
+    }
+
     let mut result = String::with_capacity(identifier.len());
     let mut capitalize_next = true;
 
@@ -374,6 +379,14 @@ mod tests {
         // Leading/trailing delimiters
         assert_eq!(to_pascal_case("-interface"), "Interface");
         assert_eq!(to_pascal_case("interface-"), "Interface");
+    }
+
+    #[test]
+    fn test_to_pascal_case_wildcard_star() {
+        // Wildcard enum `*` maps to `Star` (Requirement 6.2)
+        assert_eq!(to_pascal_case("*"), "Star");
+        // to_type_name also goes through to_pascal_case
+        assert_eq!(to_type_name("*"), "Star");
     }
 
     #[test]

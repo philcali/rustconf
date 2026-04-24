@@ -201,6 +201,12 @@ pub enum TypeSpec {
     TypedefRef {
         name: String,
     },
+    /// Identity reference type (RFC 7950 §7.18).
+    /// Values are identity names resolved at runtime.
+    IdentityRef {
+        /// The base identity name (may be prefixed, e.g., "ianaift:iana-interface-type")
+        base: String,
+    },
 }
 
 /// Range constraint for numeric types.

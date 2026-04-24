@@ -115,6 +115,7 @@ pub enum Token {
     Dot,        // .
     DoubleDot,  // ..
     Pipe,       // |
+    Star,       // *
 
     // Special
     Eof,
@@ -398,6 +399,7 @@ fn operator(input: &str) -> IResult<&str, Token> {
         value(Token::DoubleDot, tag("..")),
         value(Token::Dot, char('.')),
         value(Token::Pipe, char('|')),
+        value(Token::Star, char('*')),
     ))(input)
 }
 

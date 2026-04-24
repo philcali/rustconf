@@ -526,6 +526,7 @@ impl<'a> StubHandlerGenerator<'a> {
             TypeSpec::Enumeration { .. } => "String::new()",
             TypeSpec::Union { .. } => "String::new()",
             TypeSpec::LeafRef { .. } => "String::new()",
+            TypeSpec::IdentityRef { .. } => "String::new()",
             TypeSpec::TypedefRef { .. } => "Default::default()",
         };
 

@@ -232,3 +232,55 @@ fn test_generate_typedef() {
     // Check that type alias is generated
     assert!(content.contains("pub type Percentage = u8"));
 }
+
+#[test]
+fn test_identityref_generates_string_type() {
+    // Test that TypeSpec::IdentityRef generates a String type in generated code.
+    // Validates: Requirement 4.4
+    let config = GeneratorConfig {
+        output_dir: PathBuf::from("test_output"),
+        module_name: "test".to_string(),
+        ..Default::default()
+    };
+
+    let generator = CodeGenerator::new(config);
+
+    let container = Container {
+        name: "system".to_string(),
+        description: None,
+        config: true,
+        mandatory: false,
+        children: vec![DataNode::Leaf(Leaf {
+            name: "interface-type".to_string(),
+            description: None,
+            type_spec: TypeSpec::IdentityRef {
+                base: "ianaift:iana-interface-type".to_string(),
+            },
+            mandatory: true,
+            default: None,
+            config: true,
+        })],
+    };
+
+    let module = YangModule {
+        name: "test".to_string(),
+        namespace: "urn:test".to_string(),
+        prefix: "t".to_string(),
+        yang_version: Some(YangVersion::V1_1),
+        imports: vec![],
+        typedefs: vec![],
+        groupings: vec![],
+        data_nodes: vec![DataNode::Container(container)],
+        rpcs: vec![],
+        notifications: vec![],
+    };
+
+    let result = generator.generate(&module);
+    assert!(result.is_ok());
+
+    let generated = result.unwrap();
+    let content = &generated.files[0].content;
+
+    // IdentityRef should map to String
+    assert!(content.contains("pub interface_type: String"));
+}
