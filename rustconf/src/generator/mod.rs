@@ -234,6 +234,10 @@ impl CodeGenerator {
         // Create type generator
         let type_gen = types::TypeGenerator::new(&self.config);
 
+        // Pre-scan data nodes to detect and resolve type name collisions
+        // (e.g., ietf-interfaces has two lists named "interface" under different containers)
+        type_gen.precompute_type_names(&module.data_nodes);
+
         // Generate typedef type aliases
         for typedef in &module.typedefs {
             content.push_str(&type_gen.generate_typedef(typedef)?);
@@ -518,6 +522,9 @@ impl CodeGenerator {
 
         // Create type generator
         let type_gen = types::TypeGenerator::new(&self.config);
+
+        // Pre-scan data nodes to detect and resolve type name collisions
+        type_gen.precompute_type_names(&module.data_nodes);
 
         // Generate typedef type aliases
         for typedef in &module.typedefs {

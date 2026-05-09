@@ -535,6 +535,11 @@ impl<'a> OperationsGenerator<'a> {
                 }
 
                 output.push_str("    }\n\n");
+
+                // Generate type definitions for choice/case nodes in input
+                for node in input_nodes {
+                    output.push_str(&self.generate_nested_types(node, module, &type_gen)?);
+                }
             }
         }
 
@@ -555,10 +560,31 @@ impl<'a> OperationsGenerator<'a> {
                 }
 
                 output.push_str("    }\n\n");
+
+                // Generate type definitions for choice/case nodes in output
+                for node in output_nodes {
+                    output.push_str(&self.generate_nested_types(node, module, &type_gen)?);
+                }
             }
         }
 
         Ok(output)
+    }
+
+    /// Generate nested type definitions (choice enums, case structs, container structs)
+    /// for data nodes that appear in RPC input/output.
+    fn generate_nested_types(
+        &self,
+        node: &DataNode,
+        module: &YangModule,
+        type_gen: &crate::generator::types::TypeGenerator,
+    ) -> Result<String, GeneratorError> {
+        match node {
+            DataNode::Choice(choice) => type_gen.generate_choice(choice, module),
+            DataNode::Container(container) => type_gen.generate_container(container, module),
+            DataNode::List(list) => type_gen.generate_list(list, module),
+            _ => Ok(String::new()),
+        }
     }
 
     /// Generate an async function for an RPC operation.

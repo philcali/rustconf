@@ -48,6 +48,9 @@ log = "0.4"
 # Temporary files for tests
 tempfile.workspace = true
 
+# Regex for generated YANG pattern constraint validation
+regex = "1"
+
 [build-dependencies]
 # Code generation at build time
 rustconf = { path = "../../rustconf" }
