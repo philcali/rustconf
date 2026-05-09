@@ -1368,6 +1368,10 @@ impl ModuleParser {
                     base: String::new(),
                 }
             }
+            Token::Bits => {
+                self.advance();
+                TypeSpec::Bits { bits: Vec::new() }
+            }
             Token::Identifier(_) => {
                 // Could be a typedef reference or other type
                 // Store as TypedefRef for later resolution
@@ -1456,6 +1460,12 @@ impl ModuleParser {
                     let enum_value = self.parse_enum_value()?;
                     if let TypeSpec::Enumeration { ref mut values } = type_spec {
                         values.push(enum_value);
+                    }
+                }
+                Token::Bit => {
+                    let bit_def = self.parse_bit_def()?;
+                    if let TypeSpec::Bits { ref mut bits } = type_spec {
+                        bits.push(bit_def);
                     }
                 }
                 Token::Type => {
@@ -1610,6 +1620,15 @@ impl ModuleParser {
                             v as i64
                         }
                     })
+                })
+                .or_else(|_| {
+                    // Decimal values (e.g. 0.001 for decimal64 ranges) are
+                    // truncated to i64. This is conservative — it widens the
+                    // allowed range rather than narrowing it.
+                    trimmed
+                        .parse::<f64>()
+                        .map(|v| v as i64)
+                        .map_err(|_| trimmed.parse::<i64>().unwrap_err())
                 })
                 .map_err(|_| self.error(format!("Invalid range value: {}", trimmed))),
         }
@@ -1787,6 +1806,91 @@ impl ModuleParser {
         Ok(EnumValue {
             name,
             value,
+            description,
+        })
+    }
+
+    /// Parse bit definition: bit <identifier> [{ position <value>; description <string>; }]
+    fn parse_bit_def(&mut self) -> Result<BitDef, ParseError> {
+        self.expect(Token::Bit)?;
+
+        // Parse bit name - allow keywords as identifiers (same as enum values)
+        let name = match self.peek() {
+            Token::StringLiteral(_) => match self.advance() {
+                Token::StringLiteral(s) => s,
+                _ => unreachable!(),
+            },
+            Token::Identifier(_) => match self.advance() {
+                Token::Identifier(id) => id,
+                _ => unreachable!(),
+            },
+            tok if tok.is_keyword() => self.parse_identifier_or_keyword()?,
+            _ => {
+                let token = self.advance();
+                return Err(self.error(format!("Expected bit name, found {:?}", token)));
+            }
+        };
+
+        let mut position = None;
+        let mut description = None;
+
+        if self.peek() == &Token::LeftBrace {
+            self.advance();
+
+            while self.peek() != &Token::RightBrace && self.peek() != &Token::Eof {
+                match self.peek() {
+                    Token::Identifier(ref id) if id == "position" => {
+                        self.advance();
+                        position = Some(match self.peek() {
+                            Token::Number(_) => match self.advance() {
+                                Token::Number(n) => n as u32,
+                                _ => unreachable!(),
+                            },
+                            Token::StringLiteral(_) => match self.advance() {
+                                Token::StringLiteral(s) => {
+                                    s.trim().parse::<u32>().map_err(|_| {
+                                        self.error(format!("Invalid bit position: {}", s))
+                                    })?
+                                }
+                                _ => unreachable!(),
+                            },
+                            _ => {
+                                let token = self.advance();
+                                return Err(self.error(format!(
+                                    "Expected bit position number, found {:?}",
+                                    token
+                                )));
+                            }
+                        });
+                        self.expect(Token::Semicolon)?;
+                    }
+                    Token::Description => {
+                        self.advance();
+                        description = Some(match self.advance() {
+                            Token::StringLiteral(s) => s,
+                            token => {
+                                return Err(self.error(format!(
+                                    "Expected description string, found {:?}",
+                                    token
+                                )))
+                            }
+                        });
+                        self.expect(Token::Semicolon)?;
+                    }
+                    _ => {
+                        self.skip_statement()?;
+                    }
+                }
+            }
+
+            self.expect(Token::RightBrace)?;
+        } else {
+            self.expect(Token::Semicolon)?;
+        }
+
+        Ok(BitDef {
+            name,
+            position,
             description,
         })
     }

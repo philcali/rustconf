@@ -5,16 +5,147 @@
 
 use crate::generator::{GeneratorConfig, GeneratorError};
 use crate::parser::{Case, Choice, Container, DataNode, List, TypeDef, YangModule};
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// Generator for Rust type definitions from YANG data nodes.
 pub struct TypeGenerator<'a> {
     config: &'a GeneratorConfig,
+    /// Maps a raw type name to its deduplicated name.
+    /// When multiple data nodes would produce the same type name, subsequent
+    /// occurrences get a numeric suffix (e.g., `Interface` → `Interface2`).
+    /// This is populated by `precompute_type_names` and used by both struct
+    /// generation and field reference generation.
+    ///
+    /// Key: raw pointer to the DataNode (used as a unique identity for each node)
+    /// Value: the deduplicated type name to use
+    type_name_overrides: RefCell<HashMap<usize, String>>,
 }
 
 impl<'a> TypeGenerator<'a> {
     /// Create a new type generator with the given configuration.
     pub fn new(config: &'a GeneratorConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            type_name_overrides: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Pre-scan all data nodes in a module to detect type name collisions and
+    /// build a deduplication map. Must be called before generating types.
+    pub fn precompute_type_names(&self, data_nodes: &[DataNode]) {
+        let mut name_counts: HashMap<String, u32> = HashMap::new();
+        let mut overrides = self.type_name_overrides.borrow_mut();
+
+        // First pass: collect all type names and count occurrences
+        let mut all_nodes: Vec<(usize, String)> = Vec::new();
+        Self::collect_type_names(data_nodes, &mut all_nodes);
+
+        // Count how many times each name appears
+        for (_, name) in &all_nodes {
+            *name_counts.entry(name.clone()).or_insert(0) += 1;
+        }
+
+        // Second pass: assign deduplicated names
+        let mut name_next_suffix: HashMap<String, u32> = HashMap::new();
+        for (node_id, name) in &all_nodes {
+            if name_counts[name] > 1 {
+                let suffix = name_next_suffix.entry(name.clone()).or_insert(1);
+                let deduped = if *suffix == 1 {
+                    name.clone()
+                } else {
+                    format!("{}{}", name, suffix)
+                };
+                *suffix += 1;
+                overrides.insert(*node_id, deduped);
+            }
+        }
+    }
+
+    /// Recursively collect all type names that would be generated from data nodes.
+    /// Each entry is (node_id, type_name) where node_id is a unique identifier
+    /// derived from the node's memory address.
+    fn collect_type_names(nodes: &[DataNode], out: &mut Vec<(usize, String)>) {
+        for node in nodes {
+            match node {
+                DataNode::Container(container) => {
+                    let type_name = crate::generator::naming::to_type_name(&container.name);
+                    let node_id = std::ptr::from_ref(container) as usize;
+                    out.push((node_id, type_name));
+                    Self::collect_type_names(&container.children, out);
+                }
+                DataNode::List(list) => {
+                    let type_name = crate::generator::naming::to_type_name(&list.name);
+                    // Apply the same singular name logic as generate_list
+                    let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
+                        type_name[..type_name.len() - 1].to_string()
+                    } else {
+                        type_name
+                    };
+                    let node_id = std::ptr::from_ref(list) as usize;
+                    out.push((node_id, item_type_name));
+                    Self::collect_type_names(&list.children, out);
+                }
+                DataNode::Choice(choice) => {
+                    let type_name = crate::generator::naming::to_type_name(&choice.name);
+                    let node_id = std::ptr::from_ref(choice) as usize;
+                    out.push((node_id, type_name));
+                    // Also collect from case nodes
+                    for case in &choice.cases {
+                        // Cases with complex data generate structs
+                        if case.data_nodes.len() > 1
+                            || (case.data_nodes.len() == 1
+                                && !matches!(case.data_nodes[0], DataNode::Leaf(_)))
+                        {
+                            let variant_name = crate::generator::naming::to_type_name(&case.name);
+                            let case_type_name = format!("{}Data", variant_name);
+                            let case_id = std::ptr::from_ref(case) as usize;
+                            out.push((case_id, case_type_name));
+                        }
+                        Self::collect_type_names(&case.data_nodes, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Get the deduplicated type name for a container node.
+    fn get_container_type_name(&self, container: &Container) -> String {
+        let node_id = std::ptr::from_ref(container) as usize;
+        let overrides = self.type_name_overrides.borrow();
+        if let Some(name) = overrides.get(&node_id) {
+            name.clone()
+        } else {
+            crate::generator::naming::to_type_name(&container.name)
+        }
+    }
+
+    /// Get the deduplicated type name for a list node (singular item name).
+    fn get_list_item_type_name(&self, list: &List) -> String {
+        let node_id = std::ptr::from_ref(list) as usize;
+        let overrides = self.type_name_overrides.borrow();
+        if let Some(name) = overrides.get(&node_id) {
+            name.clone()
+        } else {
+            let type_name = crate::generator::naming::to_type_name(&list.name);
+            if type_name.ends_with('s') && type_name.len() > 1 {
+                type_name[..type_name.len() - 1].to_string()
+            } else {
+                type_name
+            }
+        }
+    }
+
+    /// Get the deduplicated type name for a choice node.
+    fn get_choice_type_name(&self, choice: &Choice) -> String {
+        let node_id = std::ptr::from_ref(choice) as usize;
+        let overrides = self.type_name_overrides.borrow();
+        if let Some(name) = overrides.get(&node_id) {
+            name.clone()
+        } else {
+            crate::generator::naming::to_type_name(&choice.name)
+        }
     }
 }
 
@@ -107,7 +238,7 @@ impl<'a> TypeGenerator<'a> {
         }
 
         // Generate struct using formatting module
-        let type_name = crate::generator::naming::to_type_name(&container.name);
+        let type_name = self.get_container_type_name(container);
         let derives = self.get_derive_traits();
 
         let struct_code = formatting::generate_struct_with_serde(
@@ -209,7 +340,7 @@ impl<'a> TypeGenerator<'a> {
         }
 
         // Generate enum using formatting module
-        let type_name = crate::generator::naming::to_type_name(&choice.name);
+        let type_name = self.get_choice_type_name(choice);
         let derives = self.get_derive_traits();
         let serde_attrs = vec![r#"rename_all = "kebab-case""#];
 
@@ -305,13 +436,7 @@ impl<'a> TypeGenerator<'a> {
         }
 
         // Generate struct definition for list items
-        let type_name = crate::generator::naming::to_type_name(&list.name);
-        // Remove trailing 's' for singular item type name if present
-        let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
-            type_name[..type_name.len() - 1].to_string()
-        } else {
-            type_name.clone()
-        };
+        let item_type_name = self.get_list_item_type_name(list);
 
         let derives = self.get_derive_traits();
 
@@ -409,7 +534,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&container.name);
-                let type_name = crate::generator::naming::to_type_name(&container.name);
+                let type_name = self.get_container_type_name(container);
                 let field_type = if container.mandatory {
                     type_name
                 } else {
@@ -433,13 +558,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&list.name);
-                let type_name = crate::generator::naming::to_type_name(&list.name);
-                // Determine item type name (singular)
-                let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
-                    &type_name[..type_name.len() - 1]
-                } else {
-                    &type_name
-                };
+                let item_type_name = self.get_list_item_type_name(list);
                 // Lists are always collections (Vec)
                 field.push_str(&format!(
                     "    pub {}: Vec<{}>,\n",
@@ -467,7 +586,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&choice.name);
-                let type_name = crate::generator::naming::to_type_name(&choice.name);
+                let type_name = self.get_choice_type_name(choice);
                 let field_type = if choice.mandatory {
                     type_name
                 } else {
@@ -518,9 +637,14 @@ impl<'a> TypeGenerator<'a> {
             TypeSpec::LeafRef { .. } => "String",     // Will be improved in later tasks
             TypeSpec::IdentityRef { .. } => "String", // Identity references map to String
             TypeSpec::TypedefRef { name } => {
-                // Use the typedef name as the type
-                &crate::generator::naming::to_type_name(name)
+                // Strip module prefix if present (e.g., "inet:ipv4-address" → "ipv4-address")
+                let local_name = match name.rsplit_once(':') {
+                    Some((_, local)) => local,
+                    None => name.as_str(),
+                };
+                &crate::generator::naming::to_type_name(local_name)
             }
+            TypeSpec::Bits { .. } => "String",
         };
 
         if mandatory {
@@ -734,7 +858,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&container.name);
-                let type_name = crate::generator::naming::to_type_name(&container.name);
+                let type_name = self.get_container_type_name(container);
                 let field_type_str = if container.mandatory {
                     type_name
                 } else {
@@ -762,14 +886,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&list.name);
-                let type_name = crate::generator::naming::to_type_name(&list.name);
-
-                // Determine item type name (singular)
-                let item_type_name = if type_name.ends_with('s') && type_name.len() > 1 {
-                    &type_name[..type_name.len() - 1]
-                } else {
-                    &type_name
-                };
+                let item_type_name = self.get_list_item_type_name(list);
 
                 let field_type_str = format!("Vec<{}>", item_type_name);
                 let field_type: syn::Type = syn::parse_str(&field_type_str).map_err(|e| {
@@ -796,7 +913,7 @@ impl<'a> TypeGenerator<'a> {
 
                 // Generate field name and type
                 let field_name = crate::generator::naming::to_field_name(&choice.name);
-                let type_name = crate::generator::naming::to_type_name(&choice.name);
+                let type_name = self.get_choice_type_name(choice);
                 let field_type_str = if choice.mandatory {
                     type_name
                 } else {

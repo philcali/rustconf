@@ -27,8 +27,8 @@ const DEFAULT_JUNOS_RELEASE: &str = "23.4";
 const DEFAULT_JUNOS_REVISION: &str = "23.4R1";
 
 /// Minimum number of models that must parse successfully.
-/// The spec requires ≥34 of 40 models to pass.
-const MIN_PASSING_MODELS: usize = 34;
+/// The spec requires ≥40 of 40 models to pass.
+const MIN_PASSING_MODELS: usize = 40;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -136,7 +136,7 @@ fn parse_all_models(yang_files: &[PathBuf], search_paths: &[PathBuf]) -> Vec<Mod
 // Tests
 // ---------------------------------------------------------------------------
 
-/// Verify that at least 34 of the 40 vendor YANG models parse successfully.
+/// Verify that at least 40 of the 40 vendor YANG models parse successfully.
 ///
 /// This is the primary compliance gate. The test discovers all IETF and
 /// Juniper vendor models from the git submodule, parses each one, and

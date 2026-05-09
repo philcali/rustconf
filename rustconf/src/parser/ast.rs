@@ -207,6 +207,11 @@ pub enum TypeSpec {
         /// The base identity name (may be prefixed, e.g., "ianaift:iana-interface-type")
         base: String,
     },
+    /// Bits type (RFC 7950 §9.7).
+    /// Represents a set of named bit positions.
+    Bits {
+        bits: Vec<BitDef>,
+    },
 }
 
 /// Range constraint for numeric types.
@@ -304,6 +309,14 @@ impl PatternConstraint {
         // For now, we just store the pattern and defer validation
         true
     }
+}
+
+/// A single bit definition within a bits type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BitDef {
+    pub name: String,
+    pub position: Option<u32>,
+    pub description: Option<String>,
 }
 
 /// Enumeration value.

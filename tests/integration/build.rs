@@ -151,24 +151,21 @@ fn resolve_yang_dirs() -> Option<(Vec<PathBuf>, Vec<PathBuf>)> {
 
 /// Check that a generated module directory contains self-consistent Rust code.
 ///
-/// Scans `operations.rs` for type references (struct field types, function
-/// parameters) and verifies they are either primitive/well-known types or
-/// defined in `types.rs` / `validation.rs`. Returns `None` if the module
-/// looks good, or `Some(reason)` describing the first problem found.
+/// Scans `operations.rs` and `types.rs` for type references (struct field
+/// types, function parameters) and verifies they are either primitive/well-known
+/// types or defined in `types.rs` / `validation.rs` / `operations.rs`. Returns
+/// `None` if the module looks good, or `Some(reason)` describing the first
+/// problem found.
 ///
 /// This catches cases where the code generator emits references to types
-/// it never defined (e.g. YANG `choice` nodes in RPC input/output that
-/// produce struct fields referencing non-existent types).
+/// it never defined — e.g. YANG `choice` nodes in RPC input/output that
+/// produce struct fields referencing non-existent types, or cross-module
+/// typedef references (like `Counter64` from `ietf-yang-types`) that are
+/// not resolved locally.
 fn check_generated_module(module_dir: &Path) -> Option<String> {
-    let ops_path = module_dir.join("operations.rs");
-    if !ops_path.exists() {
-        // No operations file — nothing to validate.
-        return None;
-    }
+    let ops_content = fs::read_to_string(module_dir.join("operations.rs")).unwrap_or_default();
 
-    let ops_content = fs::read_to_string(&ops_path).ok()?;
-
-    // Collect type names defined in types.rs and validation.rs.
+    // Collect type names defined in types.rs, validation.rs, and operations.rs.
     let mut defined_types: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     // Always-available types (Rust primitives, std, serde, runtime).
@@ -196,7 +193,7 @@ fn check_generated_module(module_dir: &Path) -> Option<String> {
     }
 
     // Scan types.rs for `pub type Foo` and `pub struct Foo` and `pub enum Foo`.
-    for filename in &["types.rs", "validation.rs"] {
+    for filename in &["types.rs", "validation.rs", "operations.rs"] {
         let path = module_dir.join(filename);
         if let Ok(content) = fs::read_to_string(&path) {
             for line in content.lines() {
@@ -218,37 +215,79 @@ fn check_generated_module(module_dir: &Path) -> Option<String> {
         }
     }
 
-    // Scan operations.rs for field type references that might be undefined.
-    // Look for patterns like `: Option<TypeName>` or `: TypeName,` in struct fields.
-    for line in ops_content.lines() {
-        let trimmed = line.trim();
+    // Scan operations.rs and types.rs for type references that might be
+    // undefined. Checks two patterns:
+    //   1. Struct field types: `pub field_name: Type` or `pub field_name: Option<Type>`
+    //   2. Type alias RHS: `pub type Foo = Bar;`
+    let types_content = fs::read_to_string(module_dir.join("types.rs")).unwrap_or_default();
+    for (scan_filename, scan_content) in &[
+        ("operations.rs", &ops_content),
+        ("types.rs", &types_content),
+    ] {
+        for line in scan_content.lines() {
+            let trimmed = line.trim();
 
-        // Match struct field patterns: `pub field_name: Type` or `pub field_name: Option<Type>`
-        if trimmed.starts_with("pub ") && trimmed.contains(':') {
-            if let Some(type_part) = trimmed.split(':').nth(1) {
-                let type_str = type_part.trim().trim_end_matches(',');
+            // Check type alias right-hand sides: `pub type Foo = Bar;`
+            if let Some(rest) = trimmed.strip_prefix("pub type ") {
+                if let Some(eq_pos) = rest.find('=') {
+                    let rhs = rest[eq_pos + 1..].trim().trim_end_matches(';').trim();
+                    let type_name: String = rhs
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if !type_name.is_empty() && !defined_types.contains(&type_name) {
+                        let context = if *scan_filename == "types.rs" {
+                            format!(
+                                "types.rs references undefined type '{}' (likely cross-module import)",
+                                type_name
+                            )
+                        } else {
+                            format!(
+                                "{} references undefined type '{}'",
+                                scan_filename, type_name
+                            )
+                        };
+                        return Some(context);
+                    }
+                }
+                continue;
+            }
 
-                // Extract the outermost type name, unwrapping Option<> and Vec<>.
-                let inner = type_str
-                    .strip_prefix("Option<")
-                    .and_then(|s| s.strip_suffix('>'))
-                    .or_else(|| {
-                        type_str
-                            .strip_prefix("Vec<")
-                            .and_then(|s| s.strip_suffix('>'))
-                    })
-                    .unwrap_or(type_str);
+            // Match struct field patterns: `pub field_name: Type` or `pub field_name: Option<Type>`
+            if trimmed.starts_with("pub ") && trimmed.contains(':') {
+                if let Some(type_part) = trimmed.split(':').nth(1) {
+                    let type_str = type_part.trim().trim_end_matches(',');
 
-                let type_name: String = inner
-                    .chars()
-                    .take_while(|c| c.is_alphanumeric() || *c == '_')
-                    .collect();
+                    // Extract the outermost type name, unwrapping Option<> and Vec<>.
+                    let inner = type_str
+                        .strip_prefix("Option<")
+                        .and_then(|s| s.strip_suffix('>'))
+                        .or_else(|| {
+                            type_str
+                                .strip_prefix("Vec<")
+                                .and_then(|s| s.strip_suffix('>'))
+                        })
+                        .unwrap_or(type_str);
 
-                if !type_name.is_empty() && !defined_types.contains(&type_name) {
-                    return Some(format!(
-                        "operations.rs references undefined type '{}'",
-                        type_name
-                    ));
+                    let type_name: String = inner
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+
+                    if !type_name.is_empty() && !defined_types.contains(&type_name) {
+                        let context = if *scan_filename == "types.rs" {
+                            format!(
+                                "types.rs references undefined type '{}' (likely cross-module import)",
+                                type_name
+                            )
+                        } else {
+                            format!(
+                                "{} references undefined type '{}'",
+                                scan_filename, type_name
+                            )
+                        };
+                        return Some(context);
+                    }
                 }
             }
         }

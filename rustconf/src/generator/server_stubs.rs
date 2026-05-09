@@ -528,6 +528,7 @@ impl<'a> StubHandlerGenerator<'a> {
             TypeSpec::LeafRef { .. } => "String::new()",
             TypeSpec::IdentityRef { .. } => "String::new()",
             TypeSpec::TypedefRef { .. } => "Default::default()",
+            TypeSpec::Bits { .. } => "String::new()",
         };
 
         Ok(default.to_string())
