@@ -1,0 +1,17 @@
+{
+  "resource_path": "/data/junos-conf-routing-options:routing-options",
+  "data": {
+    "junos-conf-routing-options:routing-options": {
+      "static": {
+        "route": [
+          {
+            "name": "0.0.0.0/0",
+            "next-hop": [
+              "192.0.2.254"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "resource_path": "/data/junos-conf-system:system",
+  "data": {
+    "junos-conf-system:system": {
+      "host-name": "e2e-test-device",
+      "domain-name": "test.example.com",
+      "name-server": [
+        {
+          "name": "8.8.8.8"
+        }
+      ]
+    }
+  }
+}

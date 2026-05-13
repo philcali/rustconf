@@ -4,7 +4,7 @@
 // Source YANG module: test-device
 // Namespace: http://example.com/test-device
 // Prefix: td
-// Generated at: 2026-04-29 21:41:17 UTC
+// Generated at: 2026-05-13 21:59:27 UTC
 
 #![allow(unused_imports, unused_variables, dead_code, clippy::module_inception)]
 

@@ -21,3 +21,7 @@ Cargo.lock
 
 # Test artifacts
 /rustconf/tests/fixtures/*/target/
+
+# E2E conformance reports (keep directory via .gitkeep)
+tests/integration/reports/*
+!tests/integration/reports/.gitkeep

@@ -1,0 +1,26 @@
+{
+  "resource_path": "/data/junos-conf-interfaces:interfaces",
+  "data": {
+    "junos-conf-interfaces:interfaces": {
+      "interface": [
+        {
+          "name": "ge-0/0/0",
+          "unit": [
+            {
+              "name": "0",
+              "family": {
+                "inet": {
+                  "address": [
+                    {
+                      "name": "192.0.2.1/24"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
