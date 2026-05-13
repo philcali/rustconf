@@ -61,6 +61,89 @@ jobs:
     - name: Build examples
       run: cargo build --examples --verbose
 
+  e2e-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    needs: build
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Read cRPD image tag
+      id: crpd-config
+      run: |
+        CRPD_IMAGE=$(grep '^image' tests/integration/config/crpd.toml | sed 's/.*= *"\(.*\)"/\1/')
+        echo "image=${CRPD_IMAGE}" >> "$GITHUB_OUTPUT"
+        echo "Using cRPD image: ${CRPD_IMAGE}"
+
+    - name: Restore cRPD Docker image cache
+      id: crpd-cache
+      uses: actions/cache@v4
+      with:
+        path: /tmp/crpd-image.tar
+        key: crpd-image-${{ steps.crpd-config.outputs.image }}
+
+    - name: Load cRPD image from cache
+      if: steps.crpd-cache.outputs.cache-hit == 'true'
+      run: docker load -i /tmp/crpd-image.tar
+
+    - name: Check cRPD image availability
+      id: image-check
+      run: |
+        if docker image inspect "${{ steps.crpd-config.outputs.image }}" > /dev/null 2>&1; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "cRPD image is available"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::cRPD image not available — skipping E2E validation"
+        fi
+
+    - name: Save cRPD image to cache
+      if: steps.image-check.outputs.available == 'true' && steps.crpd-cache.outputs.cache-hit != 'true'
+      run: docker save "${{ steps.crpd-config.outputs.image }}" -o /tmp/crpd-image.tar
+
+    - name: Run E2E validation suite
+      if: steps.image-check.outputs.available == 'true'
+      env:
+        RUSTCONF_INTEGRATION_TEST: "1"
+        RUSTCONF_CONTAINER_IMAGE: ${{ steps.crpd-config.outputs.image }}
+      run: |
+        cargo test --package rustconf-integration-tests \
+          --test e2e_junos_tests \
+          --verbose \
+          -- --nocapture
+
+    - name: Upload conformance report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-conformance-report
+        path: |
+          tests/integration/reports/e2e-conformance.txt
+          tests/integration/reports/e2e-junit.xml
+        if-no-files-found: ignore
+
   test-matrix:
     runs-on: ${{ matrix.os }}
     strategy:
